@@ -56,6 +56,7 @@ import type {
   StreamChunk,
 } from '@deepseek-ai/dsh-llm'
 import type { AttachmentStore, ImageAttachmentRef } from '@deepseek-ai/dsh-attachment'
+import { randomUUID } from 'node:crypto'
 import { idleWatchdog, timeoutOf } from '@deepseek-ai/dsh-timeout'
 import type { ResolvedPiAiProviderProfile } from './config.ts'
 import { toPiContext } from './context.ts'
@@ -209,6 +210,37 @@ function requestHeaders(headers: Readonly<Record<string, string>> | undefined): 
     ...Object.fromEntries(Object.entries(headers ?? {}).filter(([name]) => !reserved.has(name.toLowerCase()))),
     ...attribution,
   }
+}
+
+/**
+ * OpenCode's Console Go gateway (opencode.ai) rejects requests without an
+ * `x-opencode-session` header — HTTP 400 `MissingSessionID` — and uses the
+ * value as routing affinity. pi-ai does not send one, so the adapter supplies
+ * it for every request whose model resolves to the gateway: the harness
+ * session id when the request names one (stable across one conversation's
+ * turns, which is what affinity wants) and a fresh id otherwise. A deployment
+ * header of the same name always wins, whether configured for a static value
+ * or to keep the gateway's own session semantics.
+ * @param baseUrl - the resolved model endpoint.
+ * @param headers - merged request headers so far (deployment minus attribution).
+ * @param sessionId - the harness conversation id, when the request names one.
+ * @returns the same headers object, possibly with the session header added.
+ */
+export function opencodeSessionHeaders(
+  baseUrl: string,
+  headers: Record<string, string>,
+  sessionId: string | undefined,
+): Record<string, string> {
+  if (Object.keys(headers).some(name => name.toLowerCase() === 'x-opencode-session')) return headers
+  let host: string
+  try {
+    host = new URL(baseUrl).hostname
+  } catch {
+    return headers
+  }
+  if (host !== 'opencode.ai' && !host.endsWith('.opencode.ai')) return headers
+  headers['x-opencode-session'] = sessionId ?? randomUUID()
+  return headers
 }
 
 /**
@@ -384,8 +416,14 @@ export class PiAiAdapter extends LlmAdapter {
         ...options.sessionId === undefined ? {} : { sessionId: String(options.sessionId) },
         signal: watchdog.signal,
         // Profile headers are deployment-owned; attribution names are
-        // Harness-owned and therefore win collisions.
-        headers: requestHeaders(profile.headers),
+        // Harness-owned and therefore win collisions. Console Go (opencode.ai)
+        // additionally requires an x-opencode-session routing header, which
+        // pi-ai does not send; the adapter supplies one per request.
+        headers: opencodeSessionHeaders(
+          model.baseUrl,
+          requestHeaders(profile.headers),
+          options.sessionId === undefined ? undefined : String(options.sessionId),
+        ),
       })
       const iterator = toStreamChunks(events, model.contextWindow, options.signal, model.id)[Symbol.asyncIterator]()
       let exhausted = false
