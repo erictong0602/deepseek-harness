@@ -345,6 +345,33 @@ export interface Config {
 ```
 <!-- END GENERATED config-catalog:@deepseek-ai/dsh-api-workspace-files -->
 
+<!-- BEGIN GENERATED config-catalog:@deepseek-ai/dsh-astria -->
+<a id="deepseek-aidsh-astria"></a>
+
+## `@deepseek-ai/dsh-astria`
+
+- `inject`: `subprocess` · `codeGraph`
+- `source`: [`packages/codegraph/astria/src/index.ts:33`](../packages/codegraph/astria/src/index.ts)
+
+```ts config-catalog
+/** Plugin configuration: the astria executable and its host bounds. */
+export interface Config {
+  /** Executable to run (absolute, or a bare name resolved on the scrubbed PATH at load). Default `astria`. */
+  command?: string
+  /** Extra global arguments inserted before the operation subcommand. Default `[]`. */
+  args?: string[]
+  /** Extra env vars merged on top of the scrubbed ambient env. Default `{}`. */
+  env?: Record<string, string>
+  /** In-memory cap for collected stdout per query (bytes); overflow keeps the tail. Default 1000000. */
+  maxOutputBytes?: number
+  /** In-memory cap for collected stderr per query (bytes); overflow keeps the tail. Default 100000. */
+  maxStderrBytes?: number
+  /** Termination grace for cancelled or disposed queries (ms). Default 2000. */
+  killGraceMs?: number
+}
+```
+<!-- END GENERATED config-catalog:@deepseek-ai/dsh-astria -->
+
 <!-- BEGIN GENERATED config-catalog:@deepseek-ai/dsh-attachment-local -->
 <a id="deepseek-aidsh-attachment-local"></a>
 
@@ -3296,7 +3323,7 @@ export interface Config {
 
 ## `@deepseek-ai/dsh-system-prompt`
 
-- `source`: [`packages/core/system-prompt/src/index.ts:247`](../packages/core/system-prompt/src/index.ts)
+- `source`: [`packages/core/system-prompt/src/index.ts:248`](../packages/core/system-prompt/src/index.ts)
 
 ```ts config-catalog
 /** Plugin config: the deployment-authored fragment of the system prompt (see {@link Config.personaPrefix} for its contract). */
@@ -3478,6 +3505,25 @@ export interface Config {
 }
 ```
 <!-- END GENERATED config-catalog:@deepseek-ai/dsh-tool-bash-persistent -->
+
+<!-- BEGIN GENERATED config-catalog:@deepseek-ai/dsh-tool-codegraph -->
+<a id="deepseek-aidsh-tool-codegraph"></a>
+
+## `@deepseek-ai/dsh-tool-codegraph`
+
+- `inject`: `tools` · `codeGraph` · `systemPrompt`
+- `source`: [`packages/codegraph/tool-codegraph/src/index.ts:53`](../packages/codegraph/tool-codegraph/src/index.ts)
+
+```ts config-catalog
+/** Plugin configuration: the result cap and the timeout budget. */
+export interface Config {
+  /** Largest complete rendered result in characters, including truncation metadata (default 16000). */
+  maxResultChars?: number
+  /** Tool-call timeout budget in ms (default 60000). */
+  timeoutMs?: number
+}
+```
+<!-- END GENERATED config-catalog:@deepseek-ai/dsh-tool-codegraph -->
 
 <!-- BEGIN GENERATED config-catalog:@deepseek-ai/dsh-tool-fs -->
 <a id="deepseek-aidsh-tool-fs"></a>
@@ -4334,6 +4380,7 @@ export interface Config {
 | `@deepseek-ai/dsh-client-ui-user-questions` | — | [`packages/client/ui-user-questions/src/index.ts`](../packages/client/ui-user-questions/src/index.ts) |
 | `@deepseek-ai/dsh-client-ui-workflow-run` | — | [`packages/client/ui-workflow-run/src/index.ts`](../packages/client/ui-workflow-run/src/index.ts) |
 | `@deepseek-ai/dsh-client-ui-workspace` | — | [`packages/client/ui-workspace/src/index.ts`](../packages/client/ui-workspace/src/index.ts) |
+| `@deepseek-ai/dsh-codegraph` | — | [`packages/codegraph/codegraph/src/index.ts`](../packages/codegraph/codegraph/src/index.ts) |
 | `@deepseek-ai/dsh-command-compact` | `commands` · `compaction` | [`packages/compaction/command-compact/src/index.ts`](../packages/compaction/command-compact/src/index.ts) |
 | `@deepseek-ai/dsh-command-feedback` | `commands` | [`packages/feedback/command-feedback/src/index.ts`](../packages/feedback/command-feedback/src/index.ts) |
 | `@deepseek-ai/dsh-command-goal` | `commands` · `goals` | [`packages/goal/command-goal/src/index.ts`](../packages/goal/command-goal/src/index.ts) |

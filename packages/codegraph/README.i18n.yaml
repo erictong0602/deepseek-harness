@@ -1,0 +1,25 @@
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write packages/codegraph/README.md
+/:
+  en: 740720c11c3b522f
+  zh: ac3de342a1ae86fc
+/codegraph-repository-code-graphs:
+  en: a0412aa3b246afcf
+  zh: acd141895a06151c
+/codegraph-repository-code-graphs/summary:
+  en: f8c6cba78c313971
+  zh: 74014568f0abcd1f
+/codegraph-repository-code-graphs/table-of-contents:
+  en: 1eb35b015a6c423f
+  zh: 4a77a420149dff00
+/codegraph-repository-code-graphs/packages:
+  en: 4c9f1a7a8961a2e1
+  zh: e1c35ab66ff1892e
+/codegraph-repository-code-graphs/related-documentation:
+  en: 2363d4fb757be46c
+  zh: 6ad14cd50371e0b8
+/codegraph-repository-code-graphs/dev-note:
+  en: 5de1d6304e00c58f
+  zh: b3a0f2b8c8e20091

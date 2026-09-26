@@ -1,0 +1,211 @@
+import { describe, expect, it } from 'vitest'
+import { resolve } from 'node:path'
+import { Context } from '@deepseek-ai/cordis'
+import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
+import ToolRuntime from '@deepseek-ai/dsh-tools'
+import CodeGraph, { CodeGraphProviderId, type CodeGraphProvider, type CodeGraphQueryRequest, type CodeGraphResult } from '@deepseek-ai/dsh-codegraph'
+import * as ToolCodeGraph from '@deepseek-ai/dsh-tool-codegraph'
+import { CODEGRAPH_OPERATIONS, CODEGRAPH_PROMPT_TEXT, DEFAULT_CODEGRAPH_TOOL_TIMEOUT_MS } from '@deepseek-ai/dsh-tool-codegraph'
+
+/** A scripted provider recording queries; `respond` yields the result or throws. */
+function stubProvider(
+  respond: (request: CodeGraphQueryRequest) => CodeGraphResult,
+): CodeGraphProvider & { seen: CodeGraphQueryRequest[] } {
+  const seen: CodeGraphQueryRequest[] = []
+  return {
+    id: CodeGraphProviderId('stub'),
+    seen,
+    query(request) {
+      seen.push(request)
+      return Promise.resolve(respond(request))
+    },
+  }
+}
+
+/** Mount the real tool stack over a real seam plus one stub provider. */
+async function mount(provider?: CodeGraphProvider, config: ToolCodeGraph.Config = {}): Promise<{ ctx: Context }> {
+  const ctx = new Context()
+  await ctx.plugin(SystemPrompt)
+  await ctx.plugin(ToolRuntime)
+  await ctx.plugin(CodeGraph)
+  if (provider) (ctx.codeGraph as CodeGraph).registerProvider(provider)
+  await ctx.plugin(ToolCodeGraph, config)
+  return { ctx }
+}
+
+let seq = 0
+const testToolSignal = new AbortController().signal
+const workspaceRoot = resolve('/virtual/workspace')
+/** `cwd: null` means "no agent" (tests CODEGRAPH_WORKSPACE_REQUIRED); a string is the session cwd. */
+function call(ctx: Context, args: unknown, cwd: string | null = workspaceRoot) {
+  return ctx.tools.execute({
+    signal: testToolSignal,
+    callId: `c-${++seq}` as never,
+    name: 'code_graph',
+    arguments: args,
+    ...cwd !== null ? { agent: { session: { header: { cwd } } } as never } : {},
+  })
+}
+
+const okResult: CodeGraphResult = { kind: 'text', text: '# Repo map\n- packages/core', truncated: false }
+
+describe('tool-codegraph registration', () => {
+  it('registers the code_graph tool and its prompt section', async () => {
+    const { ctx } = await mount(stubProvider(() => okResult))
+    expect(ctx.tools.get('code_graph')).toBeDefined()
+    const prompt = await ctx.systemPrompt.assemble()
+    const text = prompt.sections.map(s => s.text).join('\n')
+    expect(text).toContain(CODEGRAPH_PROMPT_TEXT)
+  })
+
+  it('attaches the default timeout budget to the tool definition', async () => {
+    const { ctx } = await mount(stubProvider(() => okResult))
+    expect(ctx.tools.get('code_graph')?.timeoutMs).toBe(DEFAULT_CODEGRAPH_TOOL_TIMEOUT_MS)
+  })
+
+  it('honors a configured timeout override', async () => {
+    const { ctx } = await mount(stubProvider(() => okResult), { timeoutMs: 5000 })
+    expect(ctx.tools.get('code_graph')?.timeoutMs).toBe(5000)
+  })
+
+  it('exposes exactly the six operations in the schema enum', async () => {
+    const { ctx } = await mount(stubProvider(() => okResult))
+    const schema = ctx.tools.get('code_graph')?.parameters as { properties: { operation: { enum: string[] } } }
+    expect(schema.properties.operation.enum).toEqual([...CODEGRAPH_OPERATIONS])
+  })
+
+  it('has no default export (namespace plugin shape)', () => {
+    expect((ToolCodeGraph as { default?: unknown }).default).toBeUndefined()
+  })
+
+  it('rejects a non-positive config value at load', async () => {
+    await expect(mount(stubProvider(() => okResult), { maxResultChars: 0 })).rejects.toThrow(/maxResultChars/)
+  })
+
+  it('rejects a fractional timeout at load', async () => {
+    await expect(mount(stubProvider(() => okResult), { timeoutMs: 0.5 }))
+      .rejects.toThrow(/timeoutMs/)
+  })
+})
+
+describe('tool-codegraph execution', () => {
+  it('passes the session cwd and the derived token budget for repoMap', async () => {
+    const provider = stubProvider(() => okResult)
+    const { ctx } = await mount(provider)
+    const result = await call(ctx, { operation: 'repoMap' })
+    expect(result.isError).toBe(false)
+    expect(provider.seen[0]).toEqual({
+      root: workspaceRoot,
+      query: { operation: 'repoMap', budgetTokens: 4000 },
+    })
+  })
+
+  it('forwards query subjects and refinements', async () => {
+    const provider = stubProvider(() => okResult)
+    const { ctx } = await mount(provider)
+    await call(ctx, { operation: 'query', question: 'how does auth work', depth: 3, directed: true })
+    expect(provider.seen[0]).toMatchObject({
+      root: workspaceRoot,
+      query: { operation: 'query', question: 'how does auth work', depth: 3, directed: true, budgetTokens: 4000 },
+    })
+  })
+
+  it('forwards path endpoints and affected nodes with depth', async () => {
+    const provider = stubProvider(() => okResult)
+    const { ctx } = await mount(provider)
+    await call(ctx, { operation: 'path', source: 'boot', target: 'agent', directed: false })
+    await call(ctx, { operation: 'affected', node: 'finalExtension', depth: 2 })
+    expect(provider.seen[0]).toMatchObject({ query: { operation: 'path', source: 'boot', target: 'agent', directed: false } })
+    expect(provider.seen[1]).toMatchObject({ query: { operation: 'affected', node: 'finalExtension', depth: 2 } })
+  })
+
+  it('omits unset refinements from path and affected queries', async () => {
+    const provider = stubProvider(() => okResult)
+    const { ctx } = await mount(provider)
+    await call(ctx, { operation: 'path', source: 'boot', target: 'agent' })
+    await call(ctx, { operation: 'affected', node: 'finalExtension' })
+    await call(ctx, { operation: 'explain', node: 'ToolRuntime' })
+    expect(provider.seen[0]?.query).not.toHaveProperty('directed')
+    expect(provider.seen[1]?.query).not.toHaveProperty('depth')
+    expect(provider.seen[2]).toMatchObject({ query: { operation: 'explain', node: 'ToolRuntime' } })
+  })
+
+  it('returns the canonical text value and renders the report', async () => {
+    const { ctx } = await mount(stubProvider(() => okResult))
+    const result = await call(ctx, { operation: 'stats' })
+    expect(result.content[0]).toEqual({ type: 'text', text: '# Repo map\n- packages/core' })
+    expect(result).toMatchObject({ isError: false, value: okResult })
+  })
+
+  it('derives the budget from a configured cap', async () => {
+    const provider = stubProvider(() => okResult)
+    const { ctx } = await mount(provider, { maxResultChars: 48 })
+    await call(ctx, { operation: 'repoMap' })
+    expect(provider.seen[0]).toMatchObject({ query: { budgetTokens: 12 } })
+  })
+
+  it('caps the rendered report within the configured characters', async () => {
+    const { ctx } = await mount(stubProvider(() => ({ kind: 'text', text: 'x'.repeat(200), truncated: false })), { maxResultChars: 60 })
+    const result = await call(ctx, { operation: 'repoMap' })
+    const text = (result.content[0] as { text: string }).text
+    expect(text.length).toBe(60)
+    expect(text).toContain('report truncated (limit 60 characters)')
+  })
+
+  it('marks provider-side truncation in the rendered report', async () => {
+    const { ctx } = await mount(stubProvider(() => ({ kind: 'text', text: 'partial tail', truncated: true })))
+    const result = await call(ctx, { operation: 'query', question: 'anything' })
+    expect((result.content[0] as { text: string }).text).toContain('output truncated by the provider')
+  })
+
+  it('requires a session workspace cwd (CODEGRAPH_WORKSPACE_REQUIRED)', async () => {
+    const { ctx } = await mount(stubProvider(() => okResult))
+    const result = await call(ctx, { operation: 'stats' }, null)
+    expect(result.isError).toBe(true)
+    expect((result.content[0] as { text: string }).text).toContain('requires a session workspace cwd')
+  })
+
+  it('fails the call when no provider is registered', async () => {
+    const { ctx } = await mount()
+    const result = await call(ctx, { operation: 'stats' })
+    expect(result.isError).toBe(true)
+    expect((result.content[0] as { text: string }).text).toContain('no code-graph provider is registered')
+  })
+
+  it('rejects an unknown operation', async () => {
+    const { ctx } = await mount(stubProvider(() => okResult))
+    const result = await call(ctx, { operation: 'neighbors' })
+    expect(result.isError).toBe(true)
+    expect((result.content[0] as { text: string }).text).toContain('must be one of')
+  })
+
+  it('rejects a query without a question', async () => {
+    const { ctx } = await mount(stubProvider(() => okResult))
+    const result = await call(ctx, { operation: 'query' })
+    expect(result.isError).toBe(true)
+    expect((result.content[0] as { text: string }).text).toContain('question must be a non-empty string')
+  })
+
+  it('rejects explain without a node and path without endpoints', async () => {
+    const { ctx } = await mount(stubProvider(() => okResult))
+    expect((await call(ctx, { operation: 'explain' })).isError).toBe(true)
+    expect((await call(ctx, { operation: 'path', source: 'a' })).isError).toBe(true)
+  })
+
+  it('rejects a non-positive depth', async () => {
+    const { ctx } = await mount(stubProvider(() => okResult))
+    const result = await call(ctx, { operation: 'affected', node: 'x', depth: 0 })
+    expect(result.isError).toBe(true)
+    expect((result.content[0] as { text: string }).text).toContain('depth must be a positive integer')
+  })
+
+  it('surfaces a provider failure as an error result the model can read', async () => {
+    const boom = (): never => {
+      throw new Error('astria stats failed with exit code 2: no graph found')
+    }
+    const { ctx } = await mount(stubProvider(boom))
+    const result = await call(ctx, { operation: 'stats' })
+    expect(result.isError).toBe(true)
+    expect((result.content[0] as { text: string }).text).toContain('no graph found')
+  })
+})

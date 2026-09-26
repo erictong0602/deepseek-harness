@@ -605,6 +605,25 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
     ],
   },
   {
+    key: 'codeGraph',
+    summary: 'The code-graph capability seam (`ctx.codeGraph`).',
+    description: 'The code-graph capability seam (`ctx.codeGraph`). Owns the sole-provider slot and normalized query execution; exposes exactly the six operations and no store or process escape hatch.',
+    methods: [
+      {
+        signature: 'registerProvider(provider: CodeGraphProvider): () => void',
+        description: 'Register the scope\'s sole provider. An empty id or an occupied slot throws `CodeGraphError`; the returned disposer releases the slot. Disposed with the calling fiber.',
+        parameters: [{ name: 'provider', description: 'the backend to register.' }],
+        returns: 'a synchronous disposer releasing the slot.',
+      },
+      {
+        signature: 'query(request: CodeGraphQueryRequest, signal?: AbortSignal): Promise<CodeGraphResult>',
+        description: 'Run one query through the registered provider. No provider throws `CodeGraphError` `CODEGRAPH_UNAVAILABLE`.',
+        parameters: [{ name: 'request', description: 'the normalized query plus workspace root.' }, { name: 'signal', description: 'optional cancellation forwarded to the provider.' }],
+        returns: 'the normalized, closed-union result.',
+      },
+    ],
+  },
+  {
     key: 'commands',
     summary: 'Human-command registry.',
     description: 'Human-command registry. Plain-context definitions are global; definitions registered through a command-injected child of an agent context shadow globals for that agent.',
@@ -4644,6 +4663,26 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'ClientArtifactBaseline',
     declaration: 'export interface ClientArtifactBaseline {\n    readonly path: string;\n    readonly mtimeMs: number;\n    readonly ctimeMs: number;\n    readonly size: number;\n}',
+  },
+  {
+    name: 'CodeGraphProvider',
+    declaration: 'export interface CodeGraphProvider {\n    readonly id: CodeGraphProviderId;\n    query(request: CodeGraphQueryRequest, signal?: AbortSignal): Promise<CodeGraphResult>;\n}',
+  },
+  {
+    name: 'CodeGraphProviderId',
+    declaration: 'export type CodeGraphProviderId = Branded<\'CodeGraphProviderId\'>;',
+  },
+  {
+    name: 'CodeGraphQuery',
+    declaration: 'export type CodeGraphQuery = {\n    readonly operation: \'repoMap\';\n    readonly budgetTokens?: number;\n} | {\n    readonly operation: \'query\';\n    readonly question: string;\n    readonly depth?: number;\n    readonly directed?: boolean;\n    readonly budgetTokens?: number;\n} | {\n    readonly operation: \'explain\';\n    readonly node: string;\n} | {\n    readonly operation: \'path\';\n    readonly source: string;\n    readonly target: string;\n    readonly directed?: boolean;\n} | {\n    readonly operation: \'affected\';\n    readonly node: string;\n    readonly depth?: number;\n} | {\n    readonly operation: \'stats\';\n};',
+  },
+  {
+    name: 'CodeGraphQueryRequest',
+    declaration: 'export interface CodeGraphQueryRequest {\n    readonly root: string;\n    readonly query: CodeGraphQuery;\n}',
+  },
+  {
+    name: 'CodeGraphResult',
+    declaration: 'export type CodeGraphResult = {\n    readonly kind: \'text\';\n    readonly text: string;\n    readonly truncated: boolean;\n};',
   },
   {
     name: 'CollectedOutput',

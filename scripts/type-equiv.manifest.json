@@ -1652,6 +1652,21 @@
       "source": "packages/workflow/workflow/src/runtime-types.ts"
     },
     {
+      "doc": "docs/subsystems/codegraph.md",
+      "symbol": "CodeGraphOperation",
+      "source": "packages/codegraph/codegraph/src/types.ts"
+    },
+    {
+      "doc": "docs/subsystems/codegraph.md",
+      "symbol": "CodeGraphQuery",
+      "source": "packages/codegraph/codegraph/src/types.ts"
+    },
+    {
+      "doc": "docs/subsystems/codegraph.md",
+      "symbol": "CodeGraphResult",
+      "source": "packages/codegraph/codegraph/src/types.ts"
+    },
+    {
       "doc": "docs/subsystems/lsp.md",
       "symbol": "LspOperation",
       "source": "packages/lsp/lsp/src/types.ts"

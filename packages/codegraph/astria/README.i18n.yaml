@@ -1,0 +1,49 @@
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write packages/codegraph/astria/README.md
+/:
+  en: 2a5f2e9a76188d66
+  zh: 7e4f5bde1d6fcece
+/deepseek-ai-dsh-astria:
+  en: 7a44fe0d6af0f886
+  zh: b069e12cca80b089
+/deepseek-ai-dsh-astria/summary:
+  en: 57f4e538a5af689a
+  zh: 62611c8ea1c83098
+/deepseek-ai-dsh-astria/table-of-contents:
+  en: d152484eb41ac6b4
+  zh: 1ab85e5eda9bfb53
+/deepseek-ai-dsh-astria/use-this-package:
+  en: b90a883111b57f4d
+  zh: 2c730d554afe2f23
+/deepseek-ai-dsh-astria/use-this-package/minimal-configuration:
+  en: c42639a225e52103
+  zh: 39cea7413acdb34f
+/deepseek-ai-dsh-astria/use-this-package/what-a-query-does:
+  en: 451d1106140be922
+  zh: 3f74a2c4ddb416b6
+/deepseek-ai-dsh-astria/understand-the-implementation:
+  en: 42b15ac6321706aa
+  zh: cfcb757213648bd9
+/deepseek-ai-dsh-astria/understand-the-implementation/design-notes:
+  en: 0cc95c1a948936ce
+  zh: 4d99d6d8a92c2dc3
+/deepseek-ai-dsh-astria/understand-the-implementation/source-map:
+  en: a1d76bb37e62b50b
+  zh: f41aad9519a6d6cf
+/deepseek-ai-dsh-astria/further-exploration:
+  en: ef10242918406f53
+  zh: 91076db8ce30b556
+/deepseek-ai-dsh-astria/model-experience:
+  en: 4da4f10d9927964d
+  zh: 7c8a28f08f8154df
+/deepseek-ai-dsh-astria/model-experience/kv-cache-effect:
+  en: 372cddf54145889f
+  zh: f7b22c1a8314152f
+/deepseek-ai-dsh-astria/known-limitations-and-deferred-work:
+  en: c583b88db5ad0cbb
+  zh: b6c76fc898dda5da
+/deepseek-ai-dsh-astria/known-limitations-and-deferred-work/dev-note:
+  en: fc6986a2a631f4c2
+  zh: e9c35d35c46d5aba

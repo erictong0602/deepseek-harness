@@ -1,0 +1,103 @@
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write packages/codegraph/tool-codegraph/README.md
+/:
+  en: f004f07cdfec8f5e
+  zh: 6a007cd4389de984
+/deepseek-ai-dsh-tool-codegraph:
+  en: 60e49fd39ef2b71e
+  zh: 23d3aa3da5fbcb7d
+/deepseek-ai-dsh-tool-codegraph/summary:
+  en: 528405633b1a9244
+  zh: e30d99e78c360c0a
+/deepseek-ai-dsh-tool-codegraph/table-of-contents:
+  en: d152484eb41ac6b4
+  zh: 1ab85e5eda9bfb53
+/deepseek-ai-dsh-tool-codegraph/use-this-package:
+  en: fc119e02915854e2
+  zh: 1a8454e7b8f021cd
+/deepseek-ai-dsh-tool-codegraph/use-this-package/the-tool:
+  en: 522a3f6ff01c5208
+  zh: acfbedc84906f648
+/deepseek-ai-dsh-tool-codegraph/use-this-package/what-the-model-gets-back:
+  en: 15e433e379af6d13
+  zh: efb8e41abad94877
+/deepseek-ai-dsh-tool-codegraph/use-this-package/configuration:
+  en: 73b8b616e7bd1e3e
+  zh: b89a2a14c956dadc
+/deepseek-ai-dsh-tool-codegraph/use-this-package/failures-and-recovery:
+  en: 906751efe6291106
+  zh: e8211ec6ed5c4b80
+/deepseek-ai-dsh-tool-codegraph/understand-the-implementation:
+  en: 42b15ac6321706aa
+  zh: cfcb757213648bd9
+/deepseek-ai-dsh-tool-codegraph/understand-the-implementation/design-notes:
+  en: c59c63200945698d
+  zh: 84c8abe1be54bae8
+/deepseek-ai-dsh-tool-codegraph/understand-the-implementation/source-map:
+  en: 93af45ed4ca3676b
+  zh: cd3ab2603332115a
+/deepseek-ai-dsh-tool-codegraph/further-exploration:
+  en: c81b6829bc88920f
+  zh: 4422333ef13b0e15
+/deepseek-ai-dsh-tool-codegraph/model-experience:
+  en: 215e7ba838619b7b
+  zh: a311da3843709f90
+/deepseek-ai-dsh-tool-codegraph/model-experience/system-prompt:
+  en: cf78b9dd5596495f
+  zh: 24ba47a0c5e02586
+/deepseek-ai-dsh-tool-codegraph/model-experience/system-prompt/what-the-model-sees:
+  en: 6801e56d17e17ae3
+  zh: 3086ceb88a50d78d
+/deepseek-ai-dsh-tool-codegraph/model-experience/system-prompt/what-the-model-sees/verbatim-guidance:
+  en: ee8865eda3bcc252
+  zh: d803130744ad115b
+/deepseek-ai-dsh-tool-codegraph/model-experience/system-prompt/token-effect:
+  en: 87ab7d417091d6af
+  zh: 2d3946727fc853b7
+/deepseek-ai-dsh-tool-codegraph/model-experience/system-prompt/kv-cache-effect:
+  en: 06924f4bd0fe36e8
+  zh: 62ec118a9ecbf3b1
+/deepseek-ai-dsh-tool-codegraph/model-experience/tool-schema:
+  en: e4c7376d4f29dbd5
+  zh: 6b7a9eaf69c9ea53
+/deepseek-ai-dsh-tool-codegraph/model-experience/tool-schema/what-the-model-sees:
+  en: 8ddb912448f66aa9
+  zh: 1fbf67588953729b
+/deepseek-ai-dsh-tool-codegraph/model-experience/tool-schema/token-effect:
+  en: 8eba7fa0eb6964c7
+  zh: b47a41163a61d577
+/deepseek-ai-dsh-tool-codegraph/model-experience/tool-schema/kv-cache-effect:
+  en: fea26d63a22a24a5
+  zh: 679117fb785b9306
+/deepseek-ai-dsh-tool-codegraph/model-experience/results:
+  en: 8e1b2953471f22ba
+  zh: 765a7c4655654c0a
+/deepseek-ai-dsh-tool-codegraph/model-experience/results/what-the-model-sees:
+  en: 76ecee6003346670
+  zh: 14239de7dfac8a43
+/deepseek-ai-dsh-tool-codegraph/model-experience/results/token-effect:
+  en: 40819fc07e1a710e
+  zh: d174163dd86d88a2
+/deepseek-ai-dsh-tool-codegraph/model-experience/results/kv-cache-effect:
+  en: 9066617f92cf6f41
+  zh: 9b7a74e0342993aa
+/deepseek-ai-dsh-tool-codegraph/model-experience/ui-presentation:
+  en: 8dafa00fd9733662
+  zh: 0247f0b45739dbf7
+/deepseek-ai-dsh-tool-codegraph/model-experience/ui-presentation/what-the-model-sees:
+  en: babe3fe87cffa6b9
+  zh: fe8c226d0d59ac26
+/deepseek-ai-dsh-tool-codegraph/model-experience/ui-presentation/token-effect:
+  en: fd077e60d2f06116
+  zh: 22cffb3f43f5068d
+/deepseek-ai-dsh-tool-codegraph/model-experience/ui-presentation/kv-cache-effect:
+  en: eabdce686776b12b
+  zh: f8295ecd52e4585b
+/deepseek-ai-dsh-tool-codegraph/known-limitations-and-deferred-work:
+  en: 52f1067b890d27f7
+  zh: 2b8cb373641293f3
+/deepseek-ai-dsh-tool-codegraph/known-limitations-and-deferred-work/dev-note:
+  en: e67f633dc6fe7773
+  zh: 19552bf86462c38f

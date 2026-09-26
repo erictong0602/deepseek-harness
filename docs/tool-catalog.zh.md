@@ -38,6 +38,7 @@
 | `@deepseek-ai/dsh-tool-goal` | `create_goal`、`get_goal`、`update_goal` | `ctx.tools`、`ctx.agents`、`ctx.goals`、`ctx.systemPrompt`、`a calling Agent in an authorized open turn` | `tool/call`、`goal/change for mutations`、`tool/result` | - | create、edit、pause 和 resume 要求直接来自人类的根权限；complete 和 blocked 也接受确切的当前 Goal Round。blocked 的默认下限是 3 个获准的 Round。 |
 | `@deepseek-ai/dsh-schedule` | `schedule_create`、`schedule_delete`、`schedule_list`、`schedule_update` | `ctx.tools`、`ctx.schedule`、live 根 Agent | `tool/call`、Schedule storage domain 创建、更新或删除、`tool/result` | - | Schedule 服务加载期间，在 live 根 Agent scope 内注册。接受 after_seconds、显式绝对 at、有界固定速率 every_seconds、带显式 IANA 时区的每日与每周本地时间，以及作为五字段表达式的 cron。管理使用宿主 storage domain；到期消息会恢复原 Session。 |
 | `@deepseek-ai/dsh-tool-lsp` | `lsp` | `ctx.tools`、`ctx.lsp`、`ctx.systemPrompt` | `tool/call`、`tool/result` | - | lsp 工具将提供方选择和语言服务器子进程置于 ctx.lsp 之后，因此其模型可见 schema 在更换提供方时保持稳定。运行时要求已注册提供方，例如 `@deepseek-ai/dsh-lsp-stdio`；如果没有提供方，查询会返回结构化 `LSP_UNAVAILABLE` 错误，而不会改变 schema。 |
+| `@deepseek-ai/dsh-tool-codegraph` | `code_graph` | `ctx.tools`、`ctx.codeGraph`、`ctx.systemPrompt` | `tool/call`、`tool/result` | - | code_graph 工具将提供方选择和图后端置于 ctx.codeGraph 之后，因此其模型可见 schema 在更换提供方时保持稳定。运行时要求已注册提供方，例如 `@deepseek-ai/dsh-astria`；如果没有提供方，查询会返回结构化 `CODEGRAPH_UNAVAILABLE` 错误，而不会改变 schema。 |
 | `@deepseek-ai/dsh-tool-ralph` | `ralph` | `ctx.tools`、`ctx.workflowEngine`、`ctx.subagents`、`ctx.systemPrompt`、`a calling Agent (exec.agent parents every fresh round)` | `tool/call`、`tool/result`、`workflow and child session events during execution` | - | 固定的前台工作流会在每个 Round 启动一个全新的结构化子级；模型只能选择不可变目标和可选的 Round 上限。 |
 | `@deepseek-ai/dsh-tool-skill` | `skill` | `ctx.tools`、`ctx.agents`、`ctx.skills` | `tool/call`、`tool/result`、`user/message replacement catalogs via agent.inject()` | - | - |
 | `@deepseek-ai/dsh-tool-session-query` | `session_event_read`、`session_event_search`、`session_event_trace`、`session_search`、`session_trace` | `ctx.tools`、`ctx.systemPrompt`、`ctx.sessionQuery`、`a calling Agent for workspace authority` | `tool/call`、`tool/result` | - | 这 5 个只读工具会隐藏提供方游标，并根据不可变的调用 agent 会话为每个结果授权。该包需要选择启用；需要强制截止时间或限制行内输出的组合还会挂载通用超时或 spill 策略。 |
@@ -1727,6 +1728,65 @@ Schedule 服务加载期间，在 live 根 Agent scope 内注册。接受 after_
 来源：[`packages/lsp/tool-lsp/src/index.ts`](../packages/lsp/tool-lsp/src/index.ts)
 
 lsp 工具将提供方选择和语言服务器子进程置于 ctx.lsp 之后，因此其模型可见 schema 在更换提供方时保持稳定。运行时要求已注册提供方，例如 `@deepseek-ai/dsh-lsp-stdio`；如果没有提供方，查询会返回结构化 `LSP_UNAVAILABLE` 错误，而不会改变 schema。
+
+<a id="deepseek-aidsh-tool-codegraph"></a>
+
+## `@deepseek-ai/dsh-tool-codegraph`
+
+### `code_graph`
+
+查询仓库代码图。operation 可取 repoMap、query、explain、path、affected 或 stats。question 是 query 的搜索词；node 是 explain 与 affected 的符号标签或 id；source 和 target 是 path 的节点标签。depth 限制遍历跳数；directed 只沿调用方到被调用方的边。
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "operation": {
+      "type": "string",
+      "description": "repoMap, query, explain, path, affected, or stats.",
+      "enum": [
+        "repoMap",
+        "query",
+        "explain",
+        "path",
+        "affected",
+        "stats"
+      ]
+    },
+    "question": {
+      "type": "string",
+      "description": "query only: natural-language search terms."
+    },
+    "node": {
+      "type": "string",
+      "description": "explain and affected only: a symbol label, id, or source file path."
+    },
+    "source": {
+      "type": "string",
+      "description": "path only: the source node label."
+    },
+    "target": {
+      "type": "string",
+      "description": "path only: the target node label."
+    },
+    "depth": {
+      "type": "number",
+      "description": "query and affected only: traversal hop limit (positive integer)."
+    },
+    "directed": {
+      "type": "boolean",
+      "description": "query and path only: follow only caller-to-callee edges."
+    }
+  },
+  "required": [
+    "operation"
+  ]
+}
+```
+
+来源：[`packages/codegraph/tool-codegraph/src/index.ts`](../packages/codegraph/tool-codegraph/src/index.ts)
+
+code_graph 工具将提供方选择和图后端置于 ctx.codeGraph 之后，因此其模型可见 schema 在更换提供方时保持稳定。运行时要求已注册提供方，例如 `@deepseek-ai/dsh-astria`；如果没有提供方，查询会返回结构化 `CODEGRAPH_UNAVAILABLE` 错误，而不会改变 schema。
 
 <a id="deepseek-aidsh-tool-ralph"></a>
 

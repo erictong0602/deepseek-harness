@@ -114,6 +114,14 @@ Every package below exports a Cordis plugin that a bundle patch can name in a Lo
 | `@deepseek-ai/dsh-client-ui-workflow-run` | no | Durable workflow-run Conversation Node and nested member disclosure for dsh web |
 | `@deepseek-ai/dsh-client-ui-workspace` | no | Workspace picker plugin: one WorkspacePicker registered into the sidebar and empty-state workspace slots |
 
+## codegraph
+
+| Package | Config | Description |
+|---|---|---|
+| `@deepseek-ai/dsh-astria` | yes | Astria CLI provider for the DeepSeek Harness code-graph capability seam (ctx.codeGraph) — resolves the astria executable at load and answers repoMap/query/explain/path/affected/stats by running the one-shot astria CLI through ctx.subprocess with bounded collected output |
+| `@deepseek-ai/dsh-codegraph` | no | Abstract code-graph capability seam (ctx.codeGraph) for the DeepSeek Harness — sole-provider registry over normalized repository-map, natural-language query, symbol-explain, shortest-path, impact, and stats requests with bounded text-report results, and the CodeGraphError taxonomy |
+| `@deepseek-ai/dsh-tool-codegraph` | yes | Model-facing code_graph tool over the DeepSeek Harness code-graph capability seam (ctx.codeGraph) — one read-only tool with repoMap/query/explain/path/affected/stats operations, per-operation argument validation, and complete-result character capping |
+
 ## compaction
 
 | Package | Config | Description |

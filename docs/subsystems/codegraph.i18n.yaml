@@ -1,0 +1,16 @@
+# Bilingual-pair consistency record for codegraph.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write docs/subsystems/codegraph.md
+/code-graph-navigation:
+  en: f535e918a3e138b5
+  zh: 5fdd5da6836b9b38
+/code-graph-navigation/operations:
+  en: a9240f4a6aad1823
+  zh: 1b83fab5251ff826
+/code-graph-navigation/request-and-result:
+  en: 1a8f82229df32982
+  zh: 2e85c5334c84aa96
+/code-graph-navigation/provider-and-service:
+  en: e44ad7c835289628
+  zh: 1c4091c89686296b

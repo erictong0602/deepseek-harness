@@ -34,6 +34,7 @@ This table connects model-visible tool names to the plugin package and service s
 | `@deepseek-ai/dsh-tool-goal` | `create_goal`, `get_goal`, `update_goal` | `ctx.tools`, `ctx.agents`, `ctx.goals`, `ctx.systemPrompt`, `a calling Agent in an authorized open turn` | `tool/call`, `goal/change for mutations`, `tool/result` | - | create, edit, pause, and resume require direct-human root authority; complete and blocked also accept the exact current goal round. The default blocked lower bound is three admitted rounds. |
 | `@deepseek-ai/dsh-schedule` | `schedule_create`, `schedule_delete`, `schedule_list`, `schedule_update` | `ctx.tools`, `ctx.schedule`, `a live root Agent` | `tool/call`, `Schedule storage domain create, update, or delete`, `tool/result` | - | Registered in live root Agent scopes while the Schedule service is loaded. Accepts after_seconds, explicit absolute at, bounded fixed-rate every_seconds, daily and weekly local times in an explicit IANA zone, and cron as a five-field expression. Management uses the Host storage domain; due messages resume the original Session. |
 | `@deepseek-ai/dsh-tool-lsp` | `lsp` | `ctx.tools`, `ctx.lsp`, `ctx.systemPrompt` | `tool/call`, `tool/result` | - | The lsp tool keeps provider selection and language-server subprocesses behind ctx.lsp, so its model-visible schema stays stable across providers. Requires a registered provider (e.g. `@deepseek-ai/dsh-lsp-stdio`) at runtime; without one, a query returns the structured `LSP_UNAVAILABLE` error rather than changing the schema. |
+| `@deepseek-ai/dsh-tool-codegraph` | `code_graph` | `ctx.tools`, `ctx.codeGraph`, `ctx.systemPrompt` | `tool/call`, `tool/result` | - | The code_graph tool keeps provider selection and the graph backend behind ctx.codeGraph, so its model-visible schema stays stable across providers. Requires a registered provider (e.g. `@deepseek-ai/dsh-astria`) at runtime; without one, a query returns the structured `CODEGRAPH_UNAVAILABLE` error rather than changing the schema. |
 | `@deepseek-ai/dsh-tool-ralph` | `ralph` | `ctx.tools`, `ctx.workflowEngine`, `ctx.subagents`, `ctx.systemPrompt`, `a calling Agent (exec.agent parents every fresh round)` | `tool/call`, `tool/result`, `workflow and child session events during execution` | - | A fixed foreground workflow starts one fresh structured child per round; the model selects only the immutable objective and an optional round cap. |
 | `@deepseek-ai/dsh-tool-skill` | `skill` | `ctx.tools`, `ctx.agents`, `ctx.skills` | `tool/call`, `tool/result`, `user/message replacement catalogs via agent.inject()` | - | - |
 | `@deepseek-ai/dsh-tool-session-query` | `session_event_read`, `session_event_search`, `session_event_trace`, `session_search`, `session_trace` | `ctx.tools`, `ctx.systemPrompt`, `ctx.sessionQuery`, `a calling Agent for workspace authority` | `tool/call`, `tool/result` | - | The five read-only tools hide provider cursors and authorize every result from the immutable calling agent session. The package is opt-in; compositions that need enforced deadlines or bounded inline output also mount the generic timeout or spill policies. |
@@ -1717,6 +1718,65 @@ Query a language server for precise code navigation. operation is one of goToDef
 Source: [`packages/lsp/tool-lsp/src/index.ts`](../packages/lsp/tool-lsp/src/index.ts)
 
 The lsp tool keeps provider selection and language-server subprocesses behind ctx.lsp, so its model-visible schema stays stable across providers. Requires a registered provider (e.g. `@deepseek-ai/dsh-lsp-stdio`) at runtime; without one, a query returns the structured `LSP_UNAVAILABLE` error rather than changing the schema.
+
+<a id="deepseek-aidsh-tool-codegraph"></a>
+
+## `@deepseek-ai/dsh-tool-codegraph`
+
+### `code_graph`
+
+Query the repository code graph. operation is one of repoMap, query, explain, path, affected, stats. question is search terms for query; node is a symbol label or id for explain and affected; source and target are node labels for path. depth limits traversal hops; directed follows only caller-to-callee edges.
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "operation": {
+      "type": "string",
+      "description": "repoMap, query, explain, path, affected, or stats.",
+      "enum": [
+        "repoMap",
+        "query",
+        "explain",
+        "path",
+        "affected",
+        "stats"
+      ]
+    },
+    "question": {
+      "type": "string",
+      "description": "query only: natural-language search terms."
+    },
+    "node": {
+      "type": "string",
+      "description": "explain and affected only: a symbol label, id, or source file path."
+    },
+    "source": {
+      "type": "string",
+      "description": "path only: the source node label."
+    },
+    "target": {
+      "type": "string",
+      "description": "path only: the target node label."
+    },
+    "depth": {
+      "type": "number",
+      "description": "query and affected only: traversal hop limit (positive integer)."
+    },
+    "directed": {
+      "type": "boolean",
+      "description": "query and path only: follow only caller-to-callee edges."
+    }
+  },
+  "required": [
+    "operation"
+  ]
+}
+```
+
+Source: [`packages/codegraph/tool-codegraph/src/index.ts`](../packages/codegraph/tool-codegraph/src/index.ts)
+
+The code_graph tool keeps provider selection and the graph backend behind ctx.codeGraph, so its model-visible schema stays stable across providers. Requires a registered provider (e.g. `@deepseek-ai/dsh-astria`) at runtime; without one, a query returns the structured `CODEGRAPH_UNAVAILABLE` error rather than changing the schema.
 
 <a id="deepseek-aidsh-tool-ralph"></a>
 

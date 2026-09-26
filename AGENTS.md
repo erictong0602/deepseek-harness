@@ -28,6 +28,7 @@ packages/    @deepseek-ai/dsh-<pkg> workspaces at packages/<group>/<pkg>/
   deliverables/         turn deliverables
   fs/                   filesystem access
   lsp/                  language servers
+  codegraph/            code graphs
   skill/                skill loading
   web/                  search/fetch tools
   computer-use/         computer interaction
