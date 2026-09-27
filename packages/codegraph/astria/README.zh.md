@@ -48,6 +48,11 @@ kind: "package-reference"
 | `killGraceMs` | `2000` | 取消或释放查询的终止宽限 |
 | `transport` | `cli` | `cli` 每次查询运行一个 astria 子进程；`server` 为每个工作区根目录保有一个池化的 `astria mcp` stdio 子进程并通过它回答查询（刷新始终一次性运行） |
 | `serverTimeoutMs` | `30000` | `server` 传输的 MCP 握手与单次调用预算 |
+| `editContext.enabled` | `false` | 被观察的编辑成功后，查询其影响范围（对被编辑路径运行 `astria affected`）并作为有界模型上下文附加 |
+| `editContext.tools` | `write`、`edit`、`str_replace_editor` | 视为编辑（用于附加上下文）的工具名称 |
+| `editContext.maxChars` | `2000` | 附加影响范围上下文的最大字符数 |
+| `orientation.enabled` | `false` | `compaction/end` 事件后，为会话 agent 注入一份令牌预算内的仓库图作为下一次模型可见上下文 |
+| `orientation.budgetTokens` | `1000` | 注入的仓库图令牌预算 |
 | `autoUpdate.enabled` | `false` | 文件修改类工具成功后，启动一个由编辑 agent 拥有的防抖后台 `astria update` 任务，并在刷新完成的图落地时注入通知；需要组合任务注册表与工具运行时 |
 | `autoUpdate.debounceMs` | `3000` | 最后一次编辑之后、刷新任务启动之前的静默窗口 |
 | `autoUpdate.tools` | `write`、`edit`、`str_replace_editor` | 视为编辑的工具名称 |
@@ -56,7 +61,11 @@ kind: "package-reference"
 
 ### 一次查询做什么
 
-每个查询映射为一个 astria 子命令（`map`、`query`、`explain`、`path`、`affected`、`stats`），`--graph <root>` 固定工作区；细化字段变成 `--depth`、`--directed` 与 `--budget` 标志。子进程运行一次并收集 stdout/stderr；退出码 0 返回报告文本及其截断事实，任何其他退出都作为结构化 `CODEGRAPH_EXIT` 错误失败，其消息携带有界的 stderr 尾部 — 因此缺失的图以 CLI 自身的指引呈现，而不是无声的空结果。取消与插件释放通过子进程接缝的托管范围终止子进程。
+每个查询映射为一个 astria 子命令（`map`、`query`、`explain`、`path`、`affected`、`stats`），`--graph <root>` 固定工作区；细化字段变成 `--depth`、`--directed`、`--cursor` 与 `--budget` 标志。缺失的图以结构化 `CODEGRAPH_NO_GRAPH` 失败（匹配 astria 稳定的 "No graph found" stderr 行），工具会把它转化为一次自动后台构建。子进程运行一次并收集 stdout/stderr；退出码 0 返回报告文本及其截断事实，任何其他退出都作为结构化 `CODEGRAPH_EXIT` 错误失败，其消息携带有界的 stderr 尾部 — 因此缺失的图以 CLI 自身的指引呈现，而不是无声的空结果。取消与插件释放通过子进程接缝的托管范围终止子进程。
+
+### 附加提示
+
+两个可选监听器把图的能力延伸到显式调用之外。`editContext` 在每个被观察编辑的结果上附加该编辑的影响范围（对被编辑路径运行 `astria affected`）作为有界上下文。`orientation` 监听 `compaction/end` 会话事件，并为压缩后会话注入一份令牌预算内的仓库图作为下一次模型可见上下文；二者在没有活跃 agent 或图时保持静默。
 
 ### 刷新与自动更新
 
@@ -119,6 +128,8 @@ kind: "package-reference"
 - **CLI 传输上每次查询一次进程派生** — 每次查询（以及两种传输上的每次刷新）都付出 CLI 启动（包括打开 SQLite）；延迟敏感的部署改用 `transport: server`，它为每个工作区根目录池化一个子进程，并在失败到达调用方之前替换一次死亡或超时的子进程。
 - **面向人类的 CLI 输出** — astria v1 没有机器可读的输出标志，因此结果是 CLI 按令牌预算生成的文本原样；上游提供 `--json` 表面后，接缝才能生长出结构化结果分支。
 - **没有约束策略** — 本包信任配置的可执行文件，不添加沙箱；受限部署必须提供合适的子进程提供方或同世界沙箱包装。
+- **缺失图的匹配基于 stderr 行** — `CODEGRAPH_NO_GRAPH` 依赖 astria 的 "No graph found" 消息文本，上游措辞变化只会使其退化为普通 `CODEGRAPH_EXIT`（模型仍能看到 CLI 指引），不会造成破坏。
+- **附加提示尽力而为** — 影响范围与方向恢复监听器在没有图、agent（或对方向恢复而言没有活跃 agent）时静默跳过；它们绝不会让工具调用失败。
 - **自动更新只观察工具介导的编辑** — 监听器只对配置的工具名称（默认 `write`、`edit`、`str_replace_editor`）作出反应；shell 驱动的文件变更只有通过模型下一次显式刷新才会进入图。
 
 

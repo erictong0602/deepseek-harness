@@ -29,7 +29,7 @@ kind: "package-reference"
 
 ### 该工具
 
-`code_graph` 接受 `operation`（`repoMap`、`query`、`explain`、`path`、`affected`、`stats`、`build` 或 `update`）以及操作的主题：`query` 用 `question`；`explain` 与 `affected` 用 `node`；`path` 用 `source` 与 `target`。`depth`（正整数）与 `directed` 细化遍历；`build` 与 `update` 不需要主题。提供方选择、令牌预算、后台放置、可执行文件与超时都留在模型输入之外。
+`code_graph` 接受 `operation`（`repoMap`、`query`、`explain`、`path`、`affected`、`stats`、`build` 或 `update`）以及操作的主题：`query` 用 `question`；`explain` 与 `affected` 用 `node`；`path` 用 `source` 与 `target`。`depth`（正整数）、`directed` 与 `cursor`（截断查询展示的续读令牌）细化遍历；`build` 与 `update` 不需要主题。对缺失图的查询不会走进死胡同：在存在任务注册表且启用刷新时，调用会启动后台构建并说明何时重试。提供方选择、令牌预算、后台放置、可执行文件与超时都留在模型输入之外。
 
 ### 模型得到什么
 

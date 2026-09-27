@@ -58,6 +58,7 @@ export function mcpToolCall(request: CodeGraphQueryRequest): McpToolCall {
           question: query.question,
           ...query.depth !== undefined ? { depth: query.depth } : {},
           ...query.directed !== undefined ? { directed: query.directed } : {},
+          ...query.cursor !== undefined ? { cursor: query.cursor } : {},
           ...query.budgetTokens !== undefined ? { budget: query.budgetTokens } : {},
         },
       }
@@ -164,6 +165,9 @@ export class AstriaMcpServer {
       .map(block => block.text)
       .join('\n')
     if (outcome.isError === true) {
+      if (/No graph found/i.test(text)) {
+        throw new CodeGraphError(text, 'CODEGRAPH_NO_GRAPH')
+      }
       throw new CodeGraphError(`astria mcp ${operation} failed: ${text}`, 'CODEGRAPH_EXIT')
     }
     return { kind: 'text', text, truncated: false }

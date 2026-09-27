@@ -1735,7 +1735,7 @@ lsp 工具将提供方选择和语言服务器子进程置于 ctx.lsp 之后，�
 
 ### `code_graph`
 
-查询仓库代码图，或重建图。operation 可取 repoMap、query、explain、path、affected、stats、build 或 update。question 是 query 的搜索词；node 是 explain 与 affected 的符号标签或 id；source 和 target 是 path 的节点标签。depth 限制遍历跳数；directed 只沿调用方到被调用方的边。build 与 update 把工作区图的重建作为后台任务启动并返回任务 id。
+查询仓库代码图，或重建图。operation 可取 repoMap、query、explain、path、affected、stats、build 或 update。question 是 query 的搜索词；node 是 explain 与 affected 的符号标签或 id；source 和 target 是 path 的节点标签。depth 限制遍历跳数；directed 只沿调用方到被调用方的边；cursor 从截断查询展示的令牌续读。build 与 update 把工作区图的重建作为后台任务启动并返回任务 id。
 
 ```json
 {
@@ -1778,6 +1778,10 @@ lsp 工具将提供方选择和语言服务器子进程置于 ctx.lsp 之后，�
     "directed": {
       "type": "boolean",
       "description": "query and path only: follow only caller-to-callee edges."
+    },
+    "cursor": {
+      "type": "number",
+      "description": "query only: continuation token shown by a previous truncated result; fetches the next slice."
     }
   },
   "required": [

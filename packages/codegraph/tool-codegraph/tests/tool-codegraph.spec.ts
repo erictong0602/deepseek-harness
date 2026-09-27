@@ -5,7 +5,7 @@ import { JobRegistry } from '@deepseek-ai/dsh-jobs'
 import type { JobHooks, JobId, JobSpec } from '@deepseek-ai/dsh-jobs'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import ToolRuntime from '@deepseek-ai/dsh-tools'
-import CodeGraph, { CodeGraphProviderId, type CodeGraphProvider, type CodeGraphQueryRequest, type CodeGraphRefreshRequest, type CodeGraphResult } from '@deepseek-ai/dsh-codegraph'
+import CodeGraph, { CodeGraphError, CodeGraphProviderId, type CodeGraphProvider, type CodeGraphQueryRequest, type CodeGraphRefreshRequest, type CodeGraphResult } from '@deepseek-ai/dsh-codegraph'
 import * as ToolCodeGraph from '@deepseek-ai/dsh-tool-codegraph'
 import { CODEGRAPH_PROMPT_TEXT, CODEGRAPH_TOOL_OPERATIONS, DEFAULT_CODEGRAPH_TOOL_TIMEOUT_MS } from '@deepseek-ai/dsh-tool-codegraph'
 
@@ -158,6 +158,52 @@ describe('tool-codegraph execution', () => {
     await call(ctx, { operation: 'affected', node: 'finalExtension', depth: 2 })
     expect(provider.seen[0]).toMatchObject({ query: { operation: 'path', source: 'boot', target: 'agent', directed: false } })
     expect(provider.seen[1]).toMatchObject({ query: { operation: 'affected', node: 'finalExtension', depth: 2 } })
+  })
+
+  it('passes a continuation cursor through to the seam query', async () => {
+    const provider = stubProvider(() => okResult)
+    const { ctx } = await mount(provider)
+    await call(ctx, { operation: 'query', question: 'wide', cursor: 7 })
+    expect(provider.seen[0]).toMatchObject({ query: { cursor: 7 } })
+  })
+
+  it('rejects a negative or fractional cursor', async () => {
+    const { ctx } = await mount(stubProvider(() => okResult))
+    expect((await call(ctx, { operation: 'query', question: 'q', cursor: -1 })).isError).toBe(true)
+    expect((await call(ctx, { operation: 'query', question: 'q', cursor: 1.5 })).isError).toBe(true)
+  })
+
+  it('auto-starts a background build when the graph is missing', async () => {
+    const missing = () => {
+      throw new (CodeGraphError.bind(CodeGraphError))('No graph found at .astria/db.sqlite', 'CODEGRAPH_NO_GRAPH')
+    }
+    const provider = stubProvider(missing as never)
+    const { ctx, jobs } = await mountWithJobs(provider)
+    const result = await call(ctx, { operation: 'stats' })
+    expect(result.isError).toBe(false)
+    expect((result.content[0] as { text: string }).text).toContain('started background job codegraph-1')
+    expect(jobs.specs[0]).toMatchObject({ kind: 'codegraph', label: `astria build ${workspaceRoot}` })
+  })
+
+  it('surfaces the missing-graph error when no job registry is composed', async () => {
+    const missing = () => {
+      throw new CodeGraphError('No graph found at .astria/db.sqlite', 'CODEGRAPH_NO_GRAPH')
+    }
+    const { ctx } = await mount(stubProvider(missing as never))
+    const result = await call(ctx, { operation: 'stats' })
+    expect(result.isError).toBe(true)
+    expect((result.content[0] as { text: string }).text).toContain('No graph found')
+  })
+
+  it('surfaces the missing-graph error when refresh is disabled', async () => {
+    const missing = () => {
+      throw new (CodeGraphError.bind(CodeGraphError))('No graph found at .astria/db.sqlite', 'CODEGRAPH_NO_GRAPH')
+    }
+    const provider = stubProvider(missing as never)
+    const { ctx } = await mount(provider, { allowRefresh: false })
+    const result = await call(ctx, { operation: 'stats' })
+    expect(result.isError).toBe(true)
+    expect((result.content[0] as { text: string }).text).toContain('No graph found')
   })
 
   it('omits unset refinements from path and affected queries', async () => {

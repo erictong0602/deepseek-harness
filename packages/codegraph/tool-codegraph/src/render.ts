@@ -44,6 +44,7 @@ export interface CodeGraphToolArgs {
   readonly target?: string
   readonly depth?: number
   readonly directed?: boolean
+  readonly cursor?: number
 }
 
 /**
@@ -70,6 +71,7 @@ export function parseCodeGraphArgs(args: CodeGraphToolArgs): CodeGraphToolInput 
         question: requiredText(args.question, 'question'),
         ...depthField(args.depth),
         ...directedField(args.directed),
+        ...cursorField(args.cursor),
       }
     case 'explain':
       return { operation: args.operation, node: requiredText(args.node, 'node') }
@@ -110,6 +112,13 @@ function depthField(depth: number | undefined): { depth?: number } {
 /** Accept the directed-edge flag, or omit the field entirely. */
 function directedField(directed: boolean | undefined): { directed?: boolean } {
   return directed === undefined ? {} : { directed }
+}
+
+/** Accept a non-negative-integer continuation token, or omit the field entirely. */
+function cursorField(cursor: number | undefined): { cursor?: number } {
+  if (cursor === undefined) return {}
+  if (!Number.isInteger(cursor) || cursor < 0) throw new Error('cursor must be a non-negative integer')
+  return { cursor }
 }
 
 /**

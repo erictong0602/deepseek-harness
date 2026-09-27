@@ -95,7 +95,7 @@ export function apply(ctx: Context, config: Config): void {
   ctx.tools.register(defineTool({
     name: 'code_graph',
     description:
-      'Query the repository code graph. operation is one of repoMap, query, explain, path, affected, stats, build, update. question is search terms for query; node is a symbol label or id for explain and affected; source and target are node labels for path. depth limits traversal hops; directed follows only caller-to-callee edges. build and update rebuild the workspace graph as a background job and return the job id.',
+      'Query the repository code graph. operation is one of repoMap, query, explain, path, affected, stats, build, update. question is search terms for query; node is a symbol label or id for explain and affected; source and target are node labels for path. depth limits traversal hops; directed follows only caller-to-callee edges; cursor continues a truncated query from its shown token. build and update rebuild the workspace graph as a background job and return the job id.',
     parameters: {
       operation: {
         type: 'string',
@@ -109,6 +109,7 @@ export function apply(ctx: Context, config: Config): void {
       target: { type: 'string', description: 'path only: the target node label.' },
       depth: { type: 'number', description: 'query and affected only: traversal hop limit (positive integer).' },
       directed: { type: 'boolean', description: 'query and path only: follow only caller-to-callee edges.' },
+      cursor: { type: 'number', description: 'query only: continuation token shown by a previous truncated result; fetches the next slice.' },
     },
     output: {
       schema: {
@@ -164,12 +165,29 @@ export function apply(ctx: Context, config: Config): void {
         // The result union has one arm; field access here breaks compilation when a second arrives.
         return { kind: 'text' as const, text: refreshed.text, truncated: refreshed.truncated }
       }
-      const result = await ctx.codeGraph.query(
-        { root, query: buildSeamQuery(input, budgetForChars(resolved.maxResultChars)) },
-        exec.signal,
-      )
-      // The result union has one arm; field access here breaks compilation when a second arrives.
-      return { kind: 'text' as const, text: result.text, truncated: result.truncated }
+      try {
+        const result = await ctx.codeGraph.query(
+          { root, query: buildSeamQuery(input, budgetForChars(resolved.maxResultChars)) },
+          exec.signal,
+        )
+        // The result union has one arm; field access here breaks compilation when a second arrives.
+        return { kind: 'text' as const, text: result.text, truncated: result.truncated }
+      } catch (error) {
+        // A missing graph never dead-ends the call: start the build off the turn and say when to
+        // retry. Without a registry (or with refresh disabled) the error reaches the model as-is.
+        if (error instanceof CodeGraphError && error.code === 'CODEGRAPH_NO_GRAPH' && resolved.allowRefresh) {
+          const jobs = ctx.get('jobs')
+          if (jobs !== undefined && exec.agent !== undefined && !exec.signal.aborted) {
+            const jobId = startRefreshJob(jobs, ctx.codeGraph, root, 'build', exec.agent.id)
+            return {
+              kind: 'text' as const,
+              text: `No graph found for the workspace; started background job ${jobId} (astria build). Wait for the job to finish, then retry this query.`,
+              truncated: false,
+            }
+          }
+        }
+        throw error
+      }
     },
     presentCall: presentCodeGraphCall,
   }))
@@ -208,6 +226,7 @@ function buildSeamQuery(input: CodeGraphQueryInput, budgetTokens: number): CodeG
         question: input.question,
         ...input.depth !== undefined ? { depth: input.depth } : {},
         ...input.directed !== undefined ? { directed: input.directed } : {},
+        ...input.cursor !== undefined ? { cursor: input.cursor } : {},
         budgetTokens,
       }
     case 'explain':

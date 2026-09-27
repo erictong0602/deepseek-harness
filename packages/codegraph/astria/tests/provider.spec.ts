@@ -101,11 +101,17 @@ describe('AstriaCliProvider.query', () => {
   })
 
   it('fails with CODEGRAPH_EXIT and the stderr tail on a non-zero exit', async () => {
-    const { spawn } = recordingSpawner(() => fakeHandle({ exitCode: 2, signal: null }, '', 'no graph found'))
+    const { spawn } = recordingSpawner(() => fakeHandle({ exitCode: 2, signal: null }, '', 'extract failed'))
     const provider = new Astria.AstriaCliProvider(spec, spawn)
     await expect(provider.query(statsRequest)).rejects.toThrow(expect.objectContaining({ code: 'CODEGRAPH_EXIT' }))
     await expect(provider.query(statsRequest)).rejects.toThrow(/exit code 2/)
-    await expect(provider.query(statsRequest)).rejects.toThrow(/no graph found/)
+    await expect(provider.query(statsRequest)).rejects.toThrow(/extract failed/)
+  })
+
+  it('maps the missing-graph failure to CODEGRAPH_NO_GRAPH', async () => {
+    const { spawn } = recordingSpawner(() => fakeHandle({ exitCode: 1, signal: null }, '', 'Error: Graph error: No graph found at .astria/db.sqlite'))
+    const provider = new Astria.AstriaCliProvider(spec, spawn)
+    await expect(provider.query(statsRequest)).rejects.toThrow(expect.objectContaining({ code: 'CODEGRAPH_NO_GRAPH' }))
   })
 
   it('names the terminating signal when there is no exit code', async () => {

@@ -4680,7 +4680,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'CodeGraphQuery',
-    declaration: 'export type CodeGraphQuery = {\n    readonly operation: \'repoMap\';\n    readonly budgetTokens?: number;\n} | {\n    readonly operation: \'query\';\n    readonly question: string;\n    readonly depth?: number;\n    readonly directed?: boolean;\n    readonly budgetTokens?: number;\n} | {\n    readonly operation: \'explain\';\n    readonly node: string;\n} | {\n    readonly operation: \'path\';\n    readonly source: string;\n    readonly target: string;\n    readonly directed?: boolean;\n} | {\n    readonly operation: \'affected\';\n    readonly node: string;\n    readonly depth?: number;\n} | {\n    readonly operation: \'stats\';\n};',
+    declaration: 'export type CodeGraphQuery = {\n    readonly operation: \'repoMap\';\n    readonly budgetTokens?: number;\n} | {\n    readonly operation: \'query\';\n    readonly question: string;\n    readonly depth?: number;\n    readonly directed?: boolean;\n    readonly cursor?: number;\n    readonly budgetTokens?: number;\n} | {\n    readonly operation: \'explain\';\n    readonly node: string;\n} | {\n    readonly operation: \'path\';\n    readonly source: string;\n    readonly target: string;\n    readonly directed?: boolean;\n} | {\n    readonly operation: \'affected\';\n    readonly node: string;\n    readonly depth?: number;\n} | {\n    readonly operation: \'stats\';\n};',
   },
   {
     name: 'CodeGraphQueryRequest',

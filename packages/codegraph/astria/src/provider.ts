@@ -113,6 +113,11 @@ export class AstriaCliProvider implements CodeGraphProvider {
     fused.throwIfAborted()
     if (outcome.exitCode !== 0) {
       const stderr = handle.collected.stderr?.readFrom(0).text ?? ''
+      // The missing-graph failure gets its own code so consumers can react by building; the match
+      // is on astria's stable "No graph found" line, documented in the README's limitations.
+      if (/No graph found/i.test(stderr)) {
+        throw new CodeGraphError(stderr, 'CODEGRAPH_NO_GRAPH')
+      }
       const detail = stderr === '' ? '' : `: ${stderr}`
       const exit = outcome.exitCode === null ? `signal ${outcome.signal}` : `exit code ${outcome.exitCode}`
       throw new CodeGraphError(`astria ${label} failed with ${exit}${detail}`, 'CODEGRAPH_EXIT')

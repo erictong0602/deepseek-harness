@@ -28,6 +28,11 @@ describe('buildAstriaArgs', () => {
       .toEqual(['query', 'entry points', '--graph', '/ws'])
   })
 
+  it('continues a truncated query from its cursor token', () => {
+    expect(buildAstriaArgs(request({ operation: 'query', question: 'wide', cursor: 7 })))
+      .toEqual(['query', 'wide', '--graph', '/ws', '--cursor', '7'])
+  })
+
   it('maps explain with the node subject', () => {
     expect(buildAstriaArgs(request({ operation: 'explain', node: 'Lsp' })))
       .toEqual(['explain', 'Lsp', '--graph', '/ws'])

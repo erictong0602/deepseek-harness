@@ -24,6 +24,7 @@ export function buildAstriaArgs(request: CodeGraphQueryRequest): string[] {
         'query', query.question, '--graph', root,
         ...query.depth !== undefined ? ['--depth', String(query.depth)] : [],
         ...query.directed ? ['--directed'] : [],
+        ...query.cursor !== undefined ? ['--cursor', String(query.cursor)] : [],
         ...budgetArgs(query.budgetTokens),
       ]
     case 'explain':

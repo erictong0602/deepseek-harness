@@ -11,15 +11,24 @@
 
 import type { Context } from '@deepseek-ai/cordis'
 import { refreshJobHooks } from '@deepseek-ai/dsh-codegraph'
+import type {
+  CodeGraphQueryRequest,
+  CodeGraphService,
+} from '@deepseek-ai/dsh-codegraph'
 import z from '@deepseek-ai/schemastery'
 import { createUserMessage } from '@deepseek-ai/dsh-llm'
 import type { JobRegistry } from '@deepseek-ai/dsh-jobs'
+import type { SessionId } from '@deepseek-ai/dsh-session'
 import type { ToolExecution } from '@deepseek-ai/dsh-tools'
 import { MAX_TIMER_DELAY_MS } from '@deepseek-ai/dsh-timeout'
 import { AstriaCliProvider } from './provider.ts'
 import type { AstriaProviderSpec, AstriaSpawner } from './provider.ts'
 import { AstriaServerProvider } from './server-provider.ts'
 import type { AstriaServerSpec } from './server.ts'
+
+// Type-only: the compaction events the orientation listener reacts to are declared by this
+// package's SessionEventMap merge.
+import type {} from '@deepseek-ai/dsh-compaction'
 
 export { buildAstriaArgs, buildAstriaRefreshArgs } from './args.ts'
 export { AstriaCliProvider } from './provider.ts'
@@ -67,6 +76,24 @@ const VERSION_PROBE_TIMEOUT_MS = 10_000
 /** File-mutating tool names that trigger a debounced incremental refresh. */
 export const DEFAULT_AUTO_UPDATE_TOOLS: readonly string[] = ['write', 'edit', 'str_replace_editor']
 
+/** Blast-radius context attached after watched edit tools; enabled deployments only. */
+export interface EditContextConfig {
+  /** After a successful watched edit, query the graph and attach the blast radius as context. */
+  enabled?: boolean
+  /** Tool names that count as edits. Default write, edit, str_replace_editor. */
+  tools?: string[]
+  /** Largest attached blast-radius context in characters. Default 2000. */
+  maxChars?: number
+}
+
+/** Repository-map orientation injected after compaction; enabled deployments only. */
+export interface OrientationConfig {
+  /** After a compaction/end event, inject one token-budgeted repo map for the session's agent. */
+  enabled?: boolean
+  /** The repo map's token budget. Default 1000. */
+  budgetTokens?: number
+}
+
 /** Debounced post-edit graph refresh; enabled deployments only. */
 export interface AutoUpdateConfig {
   /** Listen for file-mutating tool results and refresh the graph. Default false. */
@@ -101,12 +128,27 @@ export interface Config {
   serverTimeoutMs?: number
   /** Debounced incremental refresh after file-mutating tools. Default disabled. */
   autoUpdate?: AutoUpdateConfig
+  /** Blast-radius context after watched edits. Default disabled. */
+  editContext?: EditContextConfig
+  /** Repository-map orientation after compaction. Default disabled. */
+  orientation?: OrientationConfig
 }
 
 const AutoUpdateConfig: z<AutoUpdateConfig> = z.object({
   enabled: z.boolean().default(false),
   debounceMs: z.number().max(MAX_TIMER_DELAY_MS).default(DEFAULT_AUTO_UPDATE_DEBOUNCE_MS),
   tools: z.array(String).default([...DEFAULT_AUTO_UPDATE_TOOLS]),
+})
+
+const EditContextConfig: z<EditContextConfig> = z.object({
+  enabled: z.boolean().default(false),
+  tools: z.array(String).default([...DEFAULT_AUTO_UPDATE_TOOLS]),
+  maxChars: z.number().default(2_000),
+})
+
+const OrientationConfig: z<OrientationConfig> = z.object({
+  enabled: z.boolean().default(false),
+  budgetTokens: z.number().default(1_000),
 })
 
 export const Config: z<Config> = z.object({
@@ -123,12 +165,16 @@ export const Config: z<Config> = z.object({
     debounceMs: DEFAULT_AUTO_UPDATE_DEBOUNCE_MS,
     tools: [...DEFAULT_AUTO_UPDATE_TOOLS],
   }),
+  editContext: EditContextConfig.default({ enabled: false, tools: [...DEFAULT_AUTO_UPDATE_TOOLS], maxChars: 2_000 }),
+  orientation: OrientationConfig.default({ enabled: false, budgetTokens: 1_000 }),
 })
 
 /** One plugin config after schemastery fills every default. */
-type ResolvedConfig = Required<Omit<Config, 'autoUpdate' | 'transport'>> & {
+type ResolvedConfig = Required<Omit<Config, 'autoUpdate' | 'transport' | 'editContext' | 'orientation'>> & {
   transport: 'cli' | 'server'
   autoUpdate: Required<AutoUpdateConfig>
+  editContext: Required<EditContextConfig>
+  orientation: Required<OrientationConfig>
 }
 
 /**
@@ -226,6 +272,93 @@ export async function apply(ctx: Context, config: Config): Promise<void> {
       })
     })
   }
+
+  if (resolved.editContext.enabled) {
+    ctx.inject(['tools'], (scoped) => {
+      const watched = new Set(resolved.editContext.tools)
+      scoped.on('tools/post-execute', async (exec, result, next) => {
+        const decision = await next()
+        try {
+          const agent = exec.agent
+          const root = agent?.session.header.cwd
+          const path = pathOfEdit(exec.arguments)
+          if (agent !== undefined && root !== undefined && !result.isError
+            && watched.has(exec.name) && path !== undefined) {
+            const affected = await provider.query({ root, query: { operation: 'affected', node: path } }, exec.signal)
+            if (affected.text.trim() === '') return decision
+            const text = boundContext(`astria blast radius for ${path}:\n${affected.text}`, resolved.editContext.maxChars)
+            return {
+              ...decision,
+              additionalContexts: [...decision.additionalContexts ?? [], createUserMessage({
+                content: [{ type: 'text', text }],
+                source: { kind: 'astria' },
+              })],
+            }
+          }
+        } catch (error) {
+          // Attaching context is advisory; a failed blast-radius query never breaks the pipeline.
+          scoped.logger.warn(`astria: attaching the edit blast-radius context failed: ${String(error)}`)
+        }
+        return decision
+      })
+    })
+  }
+
+  if (resolved.orientation.enabled) {
+    // Broadcast durable events need no service dependency: the listener simply stays silent in
+    // compositions without sessions, agents, or a graph.
+    ctx.on('session/event', (session, event) => {
+      if (event.type !== 'compaction/end') return
+      const root = session.header.cwd
+      if (root === undefined) return
+      void injectOrientation(ctx, provider, session.id, root, resolved.orientation.budgetTokens)
+    })
+  }
+}
+
+/** The `path` field of an edit tool's validated arguments, when it is a non-empty string. */
+function pathOfEdit(arguments_: ToolExecution['arguments']): string | undefined {
+  const path = (arguments_ as { path?: unknown } | undefined | null)?.path
+  if (typeof path !== 'string' || path.trim() === '') return undefined
+  return path
+}
+
+/** Bound one advisory context, keeping the omission marker inside the cap. */
+function boundContext(text: string, maxChars: number): string {
+  if (text.length <= maxChars) return text
+  return `${text.slice(0, Math.max(0, maxChars - 60))}
+… blast radius truncated (${maxChars}-character context cap).`
+}
+
+/**
+ * Inject one token-budgeted repository map as the compacted session's next model-visible context.
+ * Best effort throughout: no live agent, no graph, or an empty map simply skips orientation.
+ * @param ctx - context used to resolve the session's live agent.
+ * @param query - the registered provider's query face.
+ * @param sessionId - the compacted session whose agent receives the map.
+ * @param root - the session workspace root whose graph to map.
+ * @param budgetTokens - the repo map's token budget.
+ */
+export async function injectOrientation(
+  ctx: Context,
+  query: Pick<CodeGraphService, 'query'>,
+  sessionId: SessionId,
+  root: string,
+  budgetTokens: number,
+): Promise<void> {
+  const agent = ctx.get('agents')?.get(sessionId)
+  if (agent === undefined) return
+  try {
+    const map = await query.query({ root, query: { operation: 'repoMap', budgetTokens } } satisfies CodeGraphQueryRequest)
+    if (map.text.trim() === '') return
+    try {
+      agent.inject(createUserMessage({
+        content: [{ type: 'text', text: `astria repository map after compaction:
+${map.text}` }],
+        source: { kind: 'astria' },
+      }))
+    } catch { /* the agent went away between resolution and injection */ }
+  } catch { /* no graph or a failed query: orientation is best-effort and must stay silent */ }
 }
 
 /**

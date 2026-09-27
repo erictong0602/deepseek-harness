@@ -349,7 +349,7 @@ export interface Config {
 ## `@deepseek-ai/dsh-astria`
 
 - `inject`: `subprocess` · `codeGraph`
-- `source`: [`packages/codegraph/astria/src/index.ts:81`](../packages/codegraph/astria/src/index.ts)
+- `source`: [`packages/codegraph/astria/src/index.ts:108`](../packages/codegraph/astria/src/index.ts)
 
 ```ts config-catalog
 /** Plugin configuration: the astria executable, its host bounds, and post-edit refresh. */
@@ -376,6 +376,10 @@ export interface Config {
   serverTimeoutMs?: number
   /** Debounced incremental refresh after file-mutating tools. Default disabled. */
   autoUpdate?: AutoUpdateConfig
+  /** Blast-radius context after watched edits. Default disabled. */
+  editContext?: EditContextConfig
+  /** Repository-map orientation after compaction. Default disabled. */
+  orientation?: OrientationConfig
 }
 
 /** Debounced post-edit graph refresh; enabled deployments only. */
@@ -386,6 +390,24 @@ export interface AutoUpdateConfig {
   debounceMs?: number
   /** Tool names that count as edits. Default write, edit, str_replace_editor. */
   tools?: string[]
+}
+
+/** Blast-radius context attached after watched edit tools; enabled deployments only. */
+export interface EditContextConfig {
+  /** After a successful watched edit, query the graph and attach the blast radius as context. */
+  enabled?: boolean
+  /** Tool names that count as edits. Default write, edit, str_replace_editor. */
+  tools?: string[]
+  /** Largest attached blast-radius context in characters. Default 2000. */
+  maxChars?: number
+}
+
+/** Repository-map orientation injected after compaction; enabled deployments only. */
+export interface OrientationConfig {
+  /** After a compaction/end event, inject one token-budgeted repo map for the session's agent. */
+  enabled?: boolean
+  /** The repo map's token budget. Default 1000. */
+  budgetTokens?: number
 }
 ```
 <!-- END GENERATED config-catalog:@deepseek-ai/dsh-astria -->

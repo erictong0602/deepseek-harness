@@ -18,8 +18,9 @@ export type CodeGraphOperation = 'repoMap' | 'query' | 'explain' | 'path' | 'aff
 /**
  * One caller's normalized query, discriminated by `operation`. `question`, `node`, and
  * `source`/`target` are the operation's subject; `depth` limits traversal hops; `directed` follows
- * only caller-to-callee edges; `budgetTokens` caps the provider's rendered output in approximate
- * tokens (the consumer's result-character cap derives it — the model never passes it).
+ * only caller-to-callee edges; `cursor` continues a truncated `query` from the provider-reported
+ * continuation token; `budgetTokens` caps the provider's rendered output in approximate tokens
+ * (the consumer's result-character cap derives it — the model never passes it).
  */
 export type CodeGraphQuery =
   | { readonly operation: 'repoMap'; readonly budgetTokens?: number }
@@ -28,6 +29,7 @@ export type CodeGraphQuery =
     readonly question: string
     readonly depth?: number
     readonly directed?: boolean
+    readonly cursor?: number
     readonly budgetTokens?: number
   }
   | { readonly operation: 'explain'; readonly node: string }

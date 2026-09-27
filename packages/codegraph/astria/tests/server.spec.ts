@@ -23,6 +23,8 @@ describe('mcpToolCall', () => {
       .toEqual({ name: 'query_graph', arguments: { question: 'auth', depth: 3, directed: true, budget: 90 } })
     expect(mcpToolCall(request({ operation: 'query', question: 'auth' })))
       .toEqual({ name: 'query_graph', arguments: { question: 'auth' } })
+    expect(mcpToolCall(request({ operation: 'query', question: 'wide', cursor: 9 })))
+      .toEqual({ name: 'query_graph', arguments: { question: 'wide', cursor: 9 } })
     expect(mcpToolCall(request({ operation: 'explain', node: 'Lsp' })))
       .toEqual({ name: 'explain', arguments: { node: 'Lsp' } })
     expect(mcpToolCall(request({ operation: 'path', source: 'a', target: 'b', directed: true })))
@@ -75,10 +77,10 @@ describe('AstriaMcpServer', () => {
       if (message.id === undefined) return
       child.reply(message.id, message.method === 'initialize'
         ? { capabilities: {} }
-        : { content: [{ type: 'text', text: 'no graph found' }], isError: true })
+        : { content: [{ type: 'text', text: 'extract failed' }], isError: true })
     })
     const server = await AstriaMcpServer.start(() => child.handle(), serverSpec, '/ws')
-    await expect(server.call({ name: 'repo_map', arguments: {} }, 'repoMap')).rejects.toThrow(/no graph found/)
+    await expect(server.call({ name: 'repo_map', arguments: {} }, 'repoMap')).rejects.toThrow(/extract failed/)
     await server.dispose()
   })
 
@@ -169,6 +171,18 @@ describe('AstriaMcpServer', () => {
     await new Promise(resolve => setImmediate(resolve))
     await expect(pending).rejects.toThrow(/exited unexpectedly|closed/)
     expect(server.dead).toBe(true)
+  })
+
+  it('maps the missing-graph failure to CODEGRAPH_NO_GRAPH', async () => {
+    const child = new FakeMcpChild((message) => {
+      if (message.id === undefined) return
+      child.reply(message.id, message.method === 'initialize'
+        ? { capabilities: {} }
+        : { content: [{ type: 'text', text: 'No graph found at .astria/db.sqlite' }], isError: true })
+    })
+    const server = await AstriaMcpServer.start(() => child.handle(), serverSpec, '/ws')
+    await expect(server.call({ name: 'repo_map', arguments: {} }, 'repoMap')).rejects.toThrow(expect.objectContaining({ code: 'CODEGRAPH_NO_GRAPH' }))
+    await server.dispose()
   })
 
   it('answers a contentless result with empty text', async () => {

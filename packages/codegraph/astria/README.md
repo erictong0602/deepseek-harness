@@ -48,6 +48,11 @@ Nothing is required: the defaults run `astria` resolved on the scrubbed PATH.
 | `killGraceMs` | `2000` | Termination grace for cancelled or disposed queries |
 | `transport` | `cli` | `cli` runs one astria child per query; `server` keeps one pooled `astria mcp` stdio child per workspace root and answers queries through it (refresh always runs one-shot) |
 | `serverTimeoutMs` | `30000` | MCP handshake and per-call budget for the `server` transport |
+| `editContext.enabled` | `false` | After a successful watched edit, query the blast radius (`astria affected` on the edited path) and attach it as bounded model context |
+| `editContext.tools` | `write`, `edit`, `str_replace_editor` | Tool names that count as edits for the attached context |
+| `editContext.maxChars` | `2000` | Largest attached blast-radius context in characters |
+| `orientation.enabled` | `false` | After a `compaction/end` event, inject one token-budgeted repo map as the session agent's next model-visible context |
+| `orientation.budgetTokens` | `1000` | The injected repo map's token budget |
 | `autoUpdate.enabled` | `false` | After a successful file-mutating tool result, start one debounced background `astria update` job owned by the editing agent and inject a notice when the refreshed graph lands; needs a job registry and the tool runtime composed |
 | `autoUpdate.debounceMs` | `3000` | Quiet window after the last edit before the refresh job starts |
 | `autoUpdate.tools` | `write`, `edit`, `str_replace_editor` | Tool names that count as edits |
@@ -56,7 +61,11 @@ The generated [configuration catalog](../../../docs/config-catalog.md#deepseek-a
 
 ### What a query does
 
-Each query maps onto one astria subcommand (`map`, `query`, `explain`, `path`, `affected`, `stats`) with `--graph <root>` pinning the workspace; refinement fields become `--depth`, `--directed`, and `--budget` flags. The child runs once with collected stdout/stderr; exit 0 returns the report text with its truncation fact, and any other exit fails as a structured `CODEGRAPH_EXIT` error whose message carries the bounded stderr tail — so a missing graph surfaces as the CLI's own guidance, not a silent empty result. Cancellation and plugin disposal terminate the child through the subprocess seam's managed range.
+Each query maps onto one astria subcommand (`map`, `query`, `explain`, `path`, `affected`, `stats`) with `--graph <root>` pinning the workspace; refinement fields become `--depth`, `--directed`, `--cursor`, and `--budget` flags. A missing graph fails as the structured `CODEGRAPH_NO_GRAPH` (matched on astria's stable "No graph found" stderr line), which the tool turns into an automatic background build. The child runs once with collected stdout/stderr; exit 0 returns the report text with its truncation fact, and any other exit fails as a structured `CODEGRAPH_EXIT` error whose message carries the bounded stderr tail — so a missing graph surfaces as the CLI's own guidance, not a silent empty result. Cancellation and plugin disposal terminate the child through the subprocess seam's managed range.
+
+### Advisories
+
+Two opt-in listeners extend the graph's reach beyond explicit calls. `editContext` attaches the blast radius of each watched edit (`astria affected` over the edited path) as bounded context on the edit's own result. `orientation` listens for `compaction/end` session events and injects one token-budgeted repo map as the compacted session's next model-visible context; both stay silent without a live agent or a graph.
 
 ### Refresh and automatic updates
 
@@ -119,6 +128,8 @@ These limits define when the provider is a poor fit or needs special operational
 - **One process spawn per query on the CLI transport** — each query (and every refresh, on both transports) pays CLI startup (including SQLite open); latency-sensitive deployments switch to `transport: server`, which pools one child per workspace root and replaces a dead or timed-out child once before failing.
 - **Human-oriented CLI output** — astria v1 has no machine-readable output flags, so results are the CLI's token-budgeted text verbatim; a `--json` surface upstream would let the seam grow structured result arms.
 - **No confinement policy** — this package trusts the configured executable and adds no sandbox; a restricted deployment must supply appropriate subprocess providers or a same-world sandbox wrapper.
+- **The missing-graph match is a stderr line** — `CODEGRAPH_NO_GRAPH` keys on astria's "No graph found" message text, so an upstream wording change degrades it to a plain `CODEGRAPH_EXIT` (the model still sees the CLI's guidance) rather than breaking anything.
+- **Advisories are best-effort** — the blast radius and orientation listeners skip silently when no graph, agent, or (for orientation) live agent exists; they never fail a tool call.
 - **Auto-update sees only tool-mediated edits** — the listener reacts to configured tool names (`write`, `edit`, `str_replace_editor` by default); shell-driven file changes reach the graph only through the model's next explicit refresh.
 
 

@@ -29,7 +29,7 @@ An agent uses `code_graph` when a question is about structure — "what does cha
 
 ### The tool
 
-`code_graph` takes `operation` (`repoMap`, `query`, `explain`, `path`, `affected`, `stats`, `build`, or `update`) plus the operation's subject: `question` for `query`; `node` for `explain` and `affected`; `source` and `target` for `path`. `depth` (positive integer) and `directed` refine traversal; `build` and `update` take no subject. Provider choice, token budgets, background placement, the executable, and timeouts stay outside model input.
+`code_graph` takes `operation` (`repoMap`, `query`, `explain`, `path`, `affected`, `stats`, `build`, or `update`) plus the operation's subject: `question` for `query`; `node` for `explain` and `affected`; `source` and `target` for `path`. `depth` (positive integer), `directed`, and `cursor` (the continuation token a truncated query shows) refine traversal; `build` and `update` take no subject. A query against a missing graph does not dead-end: with a job registry and refresh enabled, the call starts a background build and says when to retry. Provider choice, token budgets, background placement, the executable, and timeouts stay outside model input.
 
 ### What the model gets back
 
