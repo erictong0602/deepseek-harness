@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-Use `dsh-astria` to give agents repository-level graph answers from [astria](https://github.com/Nodesify/astria), a tool that turns a folder into a queryable knowledge graph. It resolves the astria executable at load (logging one best-effort `astria --version` diagnostic), registers the scope's sole `ctx.codeGraph` provider, and answers the six operations one-shot through `ctx.subprocess` or — with `transport: server` — through one pooled `astria mcp` child per workspace root. The package never installs or upgrades astria and runs no package manager: deployments install the CLI themselves, and graph builds are tool operations (`build`/`update`) or automatic (`autoUpdate`, the missing-graph fallback).
+Use `dsh-astria` to give agents repository-level graph answers from [astria](https://github.com/Nodesify/astria), a tool that turns a folder into a queryable knowledge graph. It resolves the astria executable at load (logging one best-effort `astria --version` diagnostic), registers the scope's sole `ctx.codeGraph` provider, and answers the six operations one-shot through `ctx.subprocess` or — with `transport: server` — through one pooled `astria mcp` child per workspace root. The package never installs or upgrades astria and runs no package manager: deployments install the CLI themselves, and graph builds are tool operations (`build`/`update`) or automatic (`autoUpdate`, on by default, and the missing-graph fallback).
 
 ## Table of Contents
 
@@ -31,7 +31,7 @@ Install astria separately (`npm install -g @nodesify/astria`); the provider reso
 
 ### Minimal configuration
 
-Nothing is required: the defaults run `astria` resolved on the scrubbed PATH.
+Nothing is required: the defaults run `astria` resolved on the scrubbed PATH and keep the graph current after agent edits (`autoUpdate`).
 
 ```yaml
 - name: '@deepseek-ai/dsh-subprocess-local'
@@ -55,7 +55,7 @@ Nothing is required: the defaults run `astria` resolved on the scrubbed PATH.
 | `editContext.maxChars` | `2000` | Largest attached blast-radius context in characters |
 | `orientation.enabled` | `false` | After a `compaction/end` event, inject one token-budgeted repo map as the session agent's next model-visible context |
 | `orientation.budgetTokens` | `1000` | The injected repo map's token budget |
-| `autoUpdate.enabled` | `false` | After a successful file-mutating tool result, start one debounced background `astria update` job owned by the editing agent and inject a notice when the refreshed graph lands; needs a job registry and the tool runtime composed |
+| `autoUpdate.enabled` | `true` | After a successful file-mutating tool result, start one debounced background `astria update` job owned by the editing agent and inject a notice when the refreshed graph lands; needs a job registry and the tool runtime composed |
 | `autoUpdate.debounceMs` | `3000` | Quiet window after the last edit before the refresh job starts |
 | `autoUpdate.tools` | `write`, `edit`, `str_replace_editor` | Tool names that count as edits |
 
@@ -71,7 +71,7 @@ Two opt-in listeners extend the graph's reach beyond explicit calls. `editContex
 
 ### Refresh and automatic updates
 
-`refresh` runs the same one-shot discipline over `astria run` (full pipeline) or `astria update` (incremental AST-only pass); callers own placement — the `code_graph` tool schedules builds as background jobs through `ctx.jobs` under this package's `codegraph` job kind. With `autoUpdate.enabled`, a `tools/post-execute` listener watches the configured file-mutating tools and starts one debounced, agent-owned background update per workspace after edits settle, injecting an `astria`-sourced notice the next request sees. The listener activates only where a job registry and the tool runtime are composed.
+`refresh` runs the same one-shot discipline over `astria run` (full pipeline) or `astria update` (incremental AST-only pass); callers own placement — the `code_graph` tool schedules builds as background jobs through `ctx.jobs` under this package's `codegraph` job kind. `autoUpdate` (on by default) adds a `tools/post-execute` listener that watches the configured file-mutating tools and starts one debounced, agent-owned background update per workspace after edits settle, injecting an `astria`-sourced notice the next request sees. The listener activates only where a job registry and the tool runtime are composed.
 
 -----
 

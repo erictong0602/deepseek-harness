@@ -147,8 +147,8 @@ async function until(read: () => boolean, timeoutMs = 3_000): Promise<void> {
 }
 
 describe('autoUpdate listener', () => {
-  it('refreshes the graph once after a watched edit, then notifies the owning agent', async () => {
-    const { ctx, subprocess, jobs } = await mount({ autoUpdate: { enabled: true, debounceMs: 15 } })
+  it('refreshes the graph by default after a watched edit, then notifies the owning agent', async () => {
+    const { ctx, subprocess, jobs } = await mount({ autoUpdate: { debounceMs: 15 } })
     const { executed, agent } = write(ctx, '/ws')
     await expect(executed).resolves.toBeDefined()
     await until(() => jobs.specs.length > 0)
@@ -176,8 +176,8 @@ describe('autoUpdate listener', () => {
     expect(refreshSpawns(subprocess.spawned)).toHaveLength(0)
   })
 
-  it('does not register the listener when disabled (the default)', async () => {
-    const { ctx, jobs } = await mount({})
+  it('does not register the listener when explicitly disabled', async () => {
+    const { ctx, jobs } = await mount({ autoUpdate: { enabled: false, debounceMs: 15 } })
     write(ctx, '/ws')
     await new Promise(resolve => setTimeout(resolve, 60))
     expect(jobs.specs).toHaveLength(0)

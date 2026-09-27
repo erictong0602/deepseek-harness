@@ -1,6 +1,7 @@
 # Opt-in reference for the native astria code-graph integration. Install the
 # `astria` CLI first (npm install -g @nodesify/astria) and build the workspace
-# graph (`astria run .`); DSH queries it but runs no package manager.
+# graph (`astria run .`); DSH queries it but runs no package manager. Post-edit
+# graph refreshes (`autoUpdate`) are on by default.
 - insert:
     - id: codegraph-astria
       name: '@deepseek-ai/dsh-subprocess-local'
@@ -8,9 +9,6 @@
       name: '@deepseek-ai/dsh-codegraph'
     - id: codegraph-astria-provider
       name: '@deepseek-ai/dsh-astria'
-      config:
-        # Point `command` at an absolute path to pin a specific astria install.
-        autoUpdate:
-          enabled: true
+      # Point config `command` at an absolute path to pin a specific astria install.
     - id: codegraph-tool
       name: '@deepseek-ai/dsh-tool-codegraph'

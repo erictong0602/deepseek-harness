@@ -9,7 +9,7 @@ kind: "package-reference"
 
 ## 概述
 
-当部署装有 [astria](https://github.com/Nodesify/astria)（一个把目录变成可查询知识图的工具）时，使用 `dsh-astria` 为 agent 提供仓库级图回答。它在加载时解析 astria 可执行文件（记录一次尽力而为的 `astria --version` 诊断），注册作用域唯一的 `ctx.codeGraph` 提供方，并通过 `ctx.subprocess` 每次完整运行一次 astria CLI 来回答六个操作 — 或以 `transport: server` 为每个工作区根目录骑乘一个池化的 `astria mcp` stdio 子进程。本包从不安装或升级 astria，也不运行任何包管理器：部署方自行安装 CLI，图的构建是工具操作（`build`/`update`）或自动进行（`autoUpdate`、缺失图回退）。
+当部署装有 [astria](https://github.com/Nodesify/astria)（一个把目录变成可查询知识图的工具）时，使用 `dsh-astria` 为 agent 提供仓库级图回答。它在加载时解析 astria 可执行文件（记录一次尽力而为的 `astria --version` 诊断），注册作用域唯一的 `ctx.codeGraph` 提供方，并通过 `ctx.subprocess` 每次完整运行一次 astria CLI 来回答六个操作 — 或以 `transport: server` 为每个工作区根目录骑乘一个池化的 `astria mcp` stdio 子进程。本包从不安装或升级 astria，也不运行任何包管理器：部署方自行安装 CLI，图的构建是工具操作（`build`/`update`）或自动进行（默认启用的 `autoUpdate`、缺失图回退）。
 
 ## 目录
 
@@ -31,7 +31,7 @@ kind: "package-reference"
 
 ### 最小配置
 
-无需任何配置：默认在清洗后的 PATH 上解析并运行 `astria`。
+无需任何配置：默认在清洗后的 PATH 上解析并运行 `astria`，并在 agent 编辑后自动保持图最新（`autoUpdate`）。
 
 ```yaml
 - name: '@deepseek-ai/dsh-subprocess-local'
@@ -55,7 +55,7 @@ kind: "package-reference"
 | `editContext.maxChars` | `2000` | 附加影响范围上下文的最大字符数 |
 | `orientation.enabled` | `false` | `compaction/end` 事件后，为会话 agent 注入一份令牌预算内的仓库图作为下一次模型可见上下文 |
 | `orientation.budgetTokens` | `1000` | 注入的仓库图令牌预算 |
-| `autoUpdate.enabled` | `false` | 文件修改类工具成功后，启动一个由编辑 agent 拥有的防抖后台 `astria update` 任务，并在刷新完成的图落地时注入通知；需要组合任务注册表与工具运行时 |
+| `autoUpdate.enabled` | `true` | 文件修改类工具成功后，启动一个由编辑 agent 拥有的防抖后台 `astria update` 任务，并在刷新完成的图落地时注入通知；需要组合任务注册表与工具运行时 |
 | `autoUpdate.debounceMs` | `3000` | 最后一次编辑之后、刷新任务启动之前的静默窗口 |
 | `autoUpdate.tools` | `write`、`edit`、`str_replace_editor` | 视为编辑的工具名称 |
 
@@ -71,7 +71,7 @@ kind: "package-reference"
 
 ### 刷新与自动更新
 
-`refresh` 以同样的一次性纪律运行 `astria run`（完整流水线）或 `astria update`（增量 AST-only 重建）；放置由调用方决定 — `code_graph` 工具通过 `ctx.jobs` 以本包的 `codegraph` 任务种类把构建调度为后台任务。启用 `autoUpdate.enabled` 后，`tools/post-execute` 监听器观察配置的文件修改类工具，在编辑落定后为每个工作区启动一个防抖的、由 agent 拥有的后台更新，并注入下一次请求可见的 `astria` 来源通知。该监听器只在组合了任务注册表与工具运行时时激活。
+`refresh` 以同样的一次性纪律运行 `astria run`（完整流水线）或 `astria update`（增量 AST-only 重建）；放置由调用方决定 — `code_graph` 工具通过 `ctx.jobs` 以本包的 `codegraph` 任务种类把构建调度为后台任务。`autoUpdate` 默认启用：`tools/post-execute` 监听器观察配置的文件修改类工具，在编辑落定后为每个工作区启动一个防抖的、由 agent 拥有的后台更新，并注入下一次请求可见的 `astria` 来源通知。该监听器只在组合了任务注册表与工具运行时时激活。
 
 -----
 

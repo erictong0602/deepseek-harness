@@ -94,9 +94,9 @@ export interface OrientationConfig {
   budgetTokens?: number
 }
 
-/** Debounced post-edit graph refresh; enabled deployments only. */
+/** Debounced post-edit graph refresh; active wherever a job registry and the tool runtime are composed. */
 export interface AutoUpdateConfig {
-  /** Listen for file-mutating tool results and refresh the graph. Default false. */
+  /** Listen for file-mutating tool results and refresh the graph. Default true. */
   enabled?: boolean
   /** Quiet window after the last edit before the refresh job starts (ms). Default 3000. */
   debounceMs?: number
@@ -126,7 +126,7 @@ export interface Config {
   transport?: string
   /** MCP handshake and per-call budget for the `server` transport (ms). Default 30000. */
   serverTimeoutMs?: number
-  /** Debounced incremental refresh after file-mutating tools. Default disabled. */
+  /** Debounced incremental refresh after file-mutating tools. Default enabled. */
   autoUpdate?: AutoUpdateConfig
   /** Blast-radius context after watched edits. Default disabled. */
   editContext?: EditContextConfig
@@ -135,7 +135,7 @@ export interface Config {
 }
 
 const AutoUpdateConfig: z<AutoUpdateConfig> = z.object({
-  enabled: z.boolean().default(false),
+  enabled: z.boolean().default(true),
   debounceMs: z.number().max(MAX_TIMER_DELAY_MS).default(DEFAULT_AUTO_UPDATE_DEBOUNCE_MS),
   tools: z.array(String).default([...DEFAULT_AUTO_UPDATE_TOOLS]),
 })
@@ -161,7 +161,7 @@ export const Config: z<Config> = z.object({
   transport: z.string().default('cli'),
   serverTimeoutMs: z.number().max(MAX_TIMER_DELAY_MS).default(DEFAULT_SERVER_TIMEOUT_MS),
   autoUpdate: AutoUpdateConfig.default({
-    enabled: false,
+    enabled: true,
     debounceMs: DEFAULT_AUTO_UPDATE_DEBOUNCE_MS,
     tools: [...DEFAULT_AUTO_UPDATE_TOOLS],
   }),
