@@ -77,7 +77,7 @@ describe('tool-codegraph registration', () => {
     expect(ctx.tools.get('code_graph')?.timeoutMs).toBe(5000)
   })
 
-  it('exposes exactly the eight operations in the schema enum', async () => {
+  it('exposes exactly the twelve operations in the schema enum', async () => {
     const { ctx } = await mount(stubProvider(() => okResult))
     const schema = ctx.tools.get('code_graph')?.parameters as { properties: { operation: { enum: string[] } } }
     expect(schema.properties.operation.enum).toEqual([...CODEGRAPH_TOOL_OPERATIONS])
@@ -177,7 +177,7 @@ describe('tool-codegraph execution', () => {
     const missing = () => {
       throw new (CodeGraphError.bind(CodeGraphError))('No graph found at .astria/db.sqlite', 'CODEGRAPH_NO_GRAPH')
     }
-    const provider = stubProvider(missing as never)
+    const provider = stubProvider(missing)
     const { ctx, jobs } = await mountWithJobs(provider)
     const result = await call(ctx, { operation: 'stats' })
     expect(result.isError).toBe(false)
@@ -189,7 +189,7 @@ describe('tool-codegraph execution', () => {
     const missing = () => {
       throw new CodeGraphError('No graph found at .astria/db.sqlite', 'CODEGRAPH_NO_GRAPH')
     }
-    const { ctx } = await mount(stubProvider(missing as never))
+    const { ctx } = await mount(stubProvider(missing))
     const result = await call(ctx, { operation: 'stats' })
     expect(result.isError).toBe(true)
     expect((result.content[0] as { text: string }).text).toContain('No graph found')
@@ -199,7 +199,7 @@ describe('tool-codegraph execution', () => {
     const missing = () => {
       throw new (CodeGraphError.bind(CodeGraphError))('No graph found at .astria/db.sqlite', 'CODEGRAPH_NO_GRAPH')
     }
-    const provider = stubProvider(missing as never)
+    const provider = stubProvider(missing)
     const { ctx } = await mount(provider, { allowRefresh: false })
     const result = await call(ctx, { operation: 'stats' })
     expect(result.isError).toBe(true)
@@ -215,6 +215,37 @@ describe('tool-codegraph execution', () => {
     expect(provider.seen[0]?.query).not.toHaveProperty('directed')
     expect(provider.seen[1]?.query).not.toHaveProperty('depth')
     expect(provider.seen[2]).toMatchObject({ query: { operation: 'explain', node: 'ToolRuntime' } })
+  })
+
+  it('exports a viewable artifact with the deterministic placement and reports its path', async () => {
+    const provider = stubProvider(() => ({ kind: 'text', text: 'Exported HTML to: .astria/graph-view.html', truncated: false }))
+    const { ctx } = await mount(provider)
+    const result = await call(ctx, { operation: 'export' })
+    expect(provider.seen[0]).toEqual({
+      root: workspaceRoot,
+      query: { operation: 'export', format: 'html', out: resolve(workspaceRoot, '.astria', 'graph-view.html') },
+    })
+    expect(result).toMatchObject({
+      isError: false,
+      value: { kind: 'export', format: 'html', path: '.astria/graph-view.html', truncated: false },
+    })
+    expect((result.content[0] as { text: string }).text).toContain('graph view artifact: .astria/graph-view.html')
+  })
+
+  it('forwards a requested svg format through the seam query', async () => {
+    const provider = stubProvider(() => ({ kind: 'text', text: 'Exported SVG to: .astria/graph-view.svg', truncated: false }))
+    const { ctx } = await mount(provider)
+    const result = await call(ctx, { operation: 'export', format: 'svg' })
+    expect(provider.seen[0]).toMatchObject({ query: { operation: 'export', format: 'svg' } })
+    expect(result).toMatchObject({ value: { kind: 'export', format: 'svg', path: '.astria/graph-view.svg' } })
+  })
+
+  it('auto-starts a background build when an export finds no graph', async () => {
+    const provider = stubProvider(() => { throw new CodeGraphError('No graph found', 'CODEGRAPH_NO_GRAPH') })
+    const { ctx } = await mountWithJobs(provider)
+    const result = await call(ctx, { operation: 'export' })
+    expect(result).toMatchObject({ isError: false })
+    expect((result.content[0] as { text: string }).text).toContain('started background job')
   })
 
   it('returns the canonical text value and renders the report', async () => {
@@ -356,7 +387,7 @@ describe('tool-codegraph execution', () => {
   })
 
   it('stringifies a non-Error background refresh failure', async () => {
-    const provider = stubProvider(() => okResult, () => Promise.reject('disk full') as unknown as CodeGraphResult)
+    const provider = stubProvider(() => okResult, () => { throw 'disk full' })
     const { ctx, jobs } = await mountWithJobs(provider)
     await call(ctx, { operation: 'build' })
     await expect(jobs.hooks[0]!.done).resolves.toMatchObject({ status: 'failed', detail: 'disk full' })

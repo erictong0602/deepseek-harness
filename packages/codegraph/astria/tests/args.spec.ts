@@ -56,4 +56,28 @@ describe('buildAstriaArgs', () => {
     expect(buildAstriaArgs(request({ operation: 'stats' })))
       .toEqual(['stats', '--graph', '/ws'])
   })
+
+  it('maps export with its format and destination, verbatim from the seam', () => {
+    expect(buildAstriaArgs(request({ operation: 'export', format: 'html', out: '/ws/.astria/graph-view.html' })))
+      .toEqual(['export', '--format', 'html', '--out', '/ws/.astria/graph-view.html', '--graph', '/ws'])
+    expect(buildAstriaArgs(request({ operation: 'export', format: 'svg', out: '/ws/.astria/graph-view.svg' })))
+      .toEqual(['export', '--format', 'svg', '--out', '/ws/.astria/graph-view.svg', '--graph', '/ws'])
+    expect(buildAstriaArgs(request({ operation: 'export', format: 'svg', out: 'graph.svg' })))
+      .toEqual(['export', '--format', 'svg', '--out', 'graph.svg', '--graph', '/ws'])
+  })
+
+  it('maps hubs onto the god-nodes parity command', () => {
+    expect(buildAstriaArgs(request({ operation: 'hubs' })))
+      .toEqual(['god-nodes', '--graph', '/ws'])
+  })
+
+  it('maps communities onto the parity command of the same name', () => {
+    expect(buildAstriaArgs(request({ operation: 'communities' })))
+      .toEqual(['communities', '--graph', '/ws'])
+  })
+
+  it('maps status onto its machine-readable envelope', () => {
+    expect(buildAstriaArgs(request({ operation: 'status' })))
+      .toEqual(['status', '--json', '--graph', '/ws'])
+  })
 })

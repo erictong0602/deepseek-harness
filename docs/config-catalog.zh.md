@@ -351,7 +351,7 @@ export interface Config {
 ## `@deepseek-ai/dsh-astria`
 
 - `inject`: `subprocess` · `codeGraph`
-- `source`: [`packages/codegraph/astria/src/index.ts:108`](../packages/codegraph/astria/src/index.ts)
+- `source`: [`packages/codegraph/astria/src/index.ts:110`](../packages/codegraph/astria/src/index.ts)
 
 ```ts config-catalog
 /** Plugin configuration: the astria executable, its host bounds, and post-edit refresh. */
@@ -3589,7 +3589,7 @@ export interface Config {
 ## `@deepseek-ai/dsh-tool-codegraph`
 
 - `inject`: `tools` · `codeGraph` · `systemPrompt`
-- `source`: [`packages/codegraph/tool-codegraph/src/index.ts:62`](../packages/codegraph/tool-codegraph/src/index.ts)
+- `source`: [`packages/codegraph/tool-codegraph/src/index.ts:68`](../packages/codegraph/tool-codegraph/src/index.ts)
 
 ```ts config-catalog
 /** Plugin configuration: the result cap, the timeout budget, and refresh gating. */
@@ -4419,6 +4419,7 @@ export interface Config {
 | `@deepseek-ai/dsh-client-ui-attachment` | — | [`packages/client/ui-attachment/src/index.ts`](../packages/client/ui-attachment/src/index.ts) |
 | `@deepseek-ai/dsh-client-ui-brand-official` | — | [`packages/client/ui-brand-official/src/index.ts`](../packages/client/ui-brand-official/src/index.ts) |
 | `@deepseek-ai/dsh-client-ui-chat` | — | [`packages/client/ui-chat/src/index.ts`](../packages/client/ui-chat/src/index.ts) |
+| `@deepseek-ai/dsh-client-ui-codegraph` | — | [`packages/client/ui-codegraph/src/index.ts`](../packages/client/ui-codegraph/src/index.ts) |
 | `@deepseek-ai/dsh-client-ui-commands` | — | [`packages/client/ui-commands/src/index.ts`](../packages/client/ui-commands/src/index.ts) |
 | `@deepseek-ai/dsh-client-ui-conversation` | — | [`packages/client/ui-conversation/src/index.ts`](../packages/client/ui-conversation/src/index.ts) |
 | `@deepseek-ai/dsh-client-ui-cordis` | — | [`packages/extensions/ui-cordis/src/index.ts`](../packages/extensions/ui-cordis/src/index.ts) |

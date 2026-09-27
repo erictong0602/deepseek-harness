@@ -110,6 +110,42 @@ describe('AstriaServerProvider', () => {
     await provider.dispose()
   })
 
+  it('delegates status to the one-shot CLI with the envelope normalization applied', async () => {
+    const specs: SubprocessSpawnSpec[] = []
+    const provider = new AstriaServerProvider(
+      new Astria.AstriaCliProvider(providerSpec, (spawned) => {
+        specs.push(spawned)
+        return fakeHandle({ exitCode: 0, signal: null }, JSON.stringify({ status: 'fresh', nodes: 12 }))
+      }),
+      serverSpec,
+      () => fakeHandle({ exitCode: 0, signal: null }),
+    )
+    const result = await provider.query({ root: '/ws', query: { operation: 'status' } })
+    // The pooled MCP server is never started: status is a build-pipeline fact the CLI answers.
+    expect(specs[0]?.argv).toEqual(['/bin/astria', 'status', '--json', '--graph', '/ws'])
+    expect(result.text).toContain('Status: fresh')
+    expect(result.text).toContain('nodes 12')
+    await provider.dispose()
+  })
+
+  it('delegates export to the one-shot CLI without starting the pooled server', async () => {
+    const specs: SubprocessSpawnSpec[] = []
+    let mcpSpawns = 0
+    const provider = new AstriaServerProvider(
+      new Astria.AstriaCliProvider(providerSpec, (spawned) => {
+        specs.push(spawned)
+        return fakeHandle({ exitCode: 0, signal: null }, 'Exported HTML to: .astria/graph-view.html')
+      }),
+      serverSpec,
+      () => { mcpSpawns += 1; return fakeHandle({ exitCode: 0, signal: null }) },
+    )
+    const result = await provider.query({ root: '/ws', query: { operation: 'export', format: 'html', out: '/ws/.astria/graph-view.html' } })
+    expect(specs[0]?.argv).toEqual(['/bin/astria', 'export', '--format', 'html', '--out', '/ws/.astria/graph-view.html', '--graph', '/ws'])
+    expect(mcpSpawns).toBe(0)
+    expect(result.text).toContain('Exported HTML')
+    await provider.dispose()
+  })
+
   it('rejects queries after disposal without spawning', async () => {
     let spawns = 0
     const provider = new AstriaServerProvider(
@@ -127,14 +163,14 @@ describe('AstriaServerProvider', () => {
     const child = new FakeMcpChild((message) => {
       if (message.id === undefined || message.method !== 'initialize') return
       const id = message.id
-      new Promise<void>((resolve) => { release = () => { child.reply(id, { capabilities: {} }); resolve() } })
+      release = () => { child.reply(id, { capabilities: {} }) }
     })
     const provider = new AstriaServerProvider(
       new Astria.AstriaCliProvider(providerSpec, () => fakeHandle({ exitCode: 0, signal: null })),
       serverSpec,
       () => child.handle(),
     )
-    const pending = provider.query(statsRequest as never)
+    const pending = provider.query(statsRequest)
     await new Promise(resolve => setImmediate(resolve))
     await provider.dispose()
     release?.()
@@ -237,7 +273,8 @@ describe('astria plugin transport selection', () => {
   it('probes the version at load and stays on the CLI transport by default', async () => {
     const { ctx, spawned } = await mount({}, { version: { code: 0, text: '1.2.3\n' } })
     expect(spawned[0]?.argv).toEqual(['/resolved/astria', '--version'])
-    await expect(ctx.codeGraph.query(statsRequest as never)).resolves.toMatchObject({ text: expect.stringContaining('1.2.3') })
+    const result = await ctx.codeGraph.query(statsRequest)
+    expect(result.text).toContain('1.2.3')
     await ctx.fiber.dispose()
   })
 
@@ -271,7 +308,7 @@ describe('astria plugin transport selection', () => {
         : { content: [{ type: 'text', text: 'from server' }] })
     })
     const { ctx, spawned } = await mount({ transport: 'server' }, { mcp: child })
-    await expect(ctx.codeGraph.query(statsRequest as never)).resolves.toMatchObject({ text: 'from server' })
+    await expect(ctx.codeGraph.query(statsRequest)).resolves.toMatchObject({ text: 'from server' })
     expect(spawned.filter(spec => spec.argv[1] === 'mcp')).toHaveLength(1)
     await ctx.fiber.dispose()
   })

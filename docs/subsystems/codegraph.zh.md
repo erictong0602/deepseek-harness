@@ -8,15 +8,28 @@
 
 ## 操作
 
-seam 与模型恰好暴露六个仓库级查询；联合类型是封闭的，因此新增操作是 seam、提供方与工具的编译期强制变更。`budgetTokens` 由生产者拥有（工具从其结果上限推导）；模型从不传递它。
+seam 与模型恰好暴露十个仓库级操作；联合类型是封闭的，因此新增操作是 seam、提供方与工具的编译期强制变更。九个操作以有界文本回答；`export` 在调用方持有的目的地写入可查看的图工件。`budgetTokens` 由生产者拥有（工具从其结果上限推导）；模型从不传递它。
 
 ```ts type-equiv
 /**
- * The six repository-level queries the seam and model expose. A closed union: adding an operation is
- * a compile-enforced change across the seam, providers, and the tool. Symbol-level navigation is not
- * an operation here; `ctx.lsp` owns it.
+ * The ten repository-level operations the seam and model expose. A closed union: adding an
+ * operation is a compile-enforced change across the seam, providers, and the tool. Symbol-level
+ * navigation is not an operation here; `ctx.lsp` owns it. Nine operations answer with bounded text;
+ * `export` writes a viewable graph artifact instead of answering a question. `hubs`, `communities`,
+ * and `status` need astria ≥ 1.0.6 on a one-shot transport; `status` reports graph freshness, build
+ * time, astria version, and extraction-rules versions instead of graph content.
  */
-type CodeGraphOperation = 'repoMap' | 'query' | 'explain' | 'path' | 'affected' | 'stats'
+type CodeGraphOperation =
+  | 'repoMap'
+  | 'query'
+  | 'explain'
+  | 'path'
+  | 'affected'
+  | 'stats'
+  | 'export'
+  | 'hubs'
+  | 'communities'
+  | 'status'
 ```
 
 ## 请求与结果
@@ -29,7 +42,10 @@ type CodeGraphOperation = 'repoMap' | 'query' | 'explain' | 'path' | 'affected' 
  * `source`/`target` are the operation's subject; `depth` limits traversal hops; `directed` follows
  * only caller-to-callee edges; `cursor` continues a truncated `query` from the provider-reported
  * continuation token; `budgetTokens` caps the provider's rendered output in approximate tokens
- * (the consumer's result-character cap derives it — the model never passes it).
+ * (the consumer's result-character cap derives it — the model never passes it). `export` carries
+ * its `format` and the destination `out` path — callers own placement, the provider never defaults
+ * a destination. `hubs`, `communities`, and `status` take no subject: they answer graph-level
+ * structure (hub nodes, communities, freshness, build time, and tool versions).
  */
 type CodeGraphQuery =
   | { readonly operation: 'repoMap'; readonly budgetTokens?: number }
@@ -45,6 +61,10 @@ type CodeGraphQuery =
   | { readonly operation: 'path'; readonly source: string; readonly target: string; readonly directed?: boolean }
   | { readonly operation: 'affected'; readonly node: string; readonly depth?: number }
   | { readonly operation: 'stats' }
+  | { readonly operation: 'export'; readonly format: CodeGraphExportFormat; readonly out: string }
+  | { readonly operation: 'hubs' }
+  | { readonly operation: 'communities' }
+  | { readonly operation: 'status' }
 ```
 
 ```ts type-equiv

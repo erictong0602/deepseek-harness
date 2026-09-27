@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-Use `dsh-astria` to give agents repository-level graph answers from [astria](https://github.com/Nodesify/astria), a tool that turns a folder into a queryable knowledge graph. It resolves the astria executable at load (logging one best-effort `astria --version` diagnostic), registers the scope's sole `ctx.codeGraph` provider, and answers the six operations one-shot through `ctx.subprocess` or — with `transport: server` — through one pooled `astria mcp` child per workspace root. The package never installs or upgrades astria and runs no package manager: deployments install the CLI themselves, and graph builds are tool operations (`build`/`update`) or automatic (`autoUpdate`, on by default, and the missing-graph fallback).
+Use `dsh-astria` to give agents repository-level graph answers from [astria](https://github.com/Nodesify/astria), a tool that turns a folder into a queryable knowledge graph. It resolves the astria executable at load (logging one best-effort `astria --version` diagnostic), registers the scope's sole `ctx.codeGraph` provider, and answers the ten operations one-shot through `ctx.subprocess` or — with `transport: server` — through one pooled `astria mcp` child per workspace root. The package never installs or upgrades astria and runs no package manager: deployments install the CLI themselves, and graph builds are tool operations (`build`/`update`) or automatic (`autoUpdate`, on by default, and the missing-graph fallback).
 
 ## Table of Contents
 
@@ -63,7 +63,7 @@ The generated [configuration catalog](../../../docs/config-catalog.md#deepseek-a
 
 ### What a query does
 
-Each query maps onto one astria subcommand (`map`, `query`, `explain`, `path`, `affected`, `stats`) with `--graph <root>` pinning the workspace; refinement fields become `--depth`, `--directed`, `--cursor`, and `--budget` flags. A missing graph fails as the structured `CODEGRAPH_NO_GRAPH` (matched on astria's stable "No graph found" stderr line), which the tool turns into an automatic background build. The child runs once with collected stdout/stderr; exit 0 returns the report text with its truncation fact, and any other exit fails as a structured `CODEGRAPH_EXIT` error whose message carries the bounded stderr tail — so a missing graph surfaces as the CLI's own guidance, not a silent empty result. Cancellation and plugin disposal terminate the child through the subprocess seam's managed range.
+Each query maps onto one astria subcommand (`map`, `query`, `explain`, `path`, `affected`, `stats`, `export`, `god-nodes`, `communities`, `status`) with `--graph <root>` pinning the workspace; `export` adds `--format <html|svg>` and the caller-owned `--out` destination, `status` rides its `--json` envelope (normalized so freshness facts and a missing graph surface structurally), and `hubs`/`communities`/`status` need astria ≥ 1.0.6: refinement fields become `--depth`, `--directed`, `--cursor`, and `--budget` flags. A missing graph fails as the structured `CODEGRAPH_NO_GRAPH` (matched on astria's stable "No graph found" stderr line), which the tool turns into an automatic background build. The child runs once with collected stdout/stderr; exit 0 returns the report text with its truncation fact, and any other exit fails as a structured `CODEGRAPH_EXIT` error whose message carries the bounded stderr tail — so a missing graph surfaces as the CLI's own guidance, not a silent empty result. Cancellation and plugin disposal terminate the child through the subprocess seam's managed range.
 
 ### Advisories
 

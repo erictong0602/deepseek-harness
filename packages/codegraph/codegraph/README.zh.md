@@ -1,5 +1,5 @@
 ---
-description: "代码图服务定义（ctx.codeGraph）：单提供方注册表、六个归一化仓库级操作、有界文本结果与 CodeGraphError 错误分类，供组合代码图导航的用户与维护者使用。"
+description: "代码图服务定义（ctx.codeGraph）：单提供方注册表、十个归一化仓库级操作、有界文本结果与 CodeGraphError 错误分类，供组合代码图导航的用户与维护者使用。"
 kind: "package-reference"
 ---
 
@@ -9,7 +9,7 @@ kind: "package-reference"
 
 ## 概述
 
-`dsh-codegraph` 定义代码图能力接缝：一个作用域至多持有一个提供方，查询是六个归一化只读操作（`repoMap`、`query`、`explain`、`path`、`affected`、`stats`），每个结果都是带显式截断事实的有界文本。组合代码图后端或消费者时使用本包；参考提供方见 [`dsh-astria`](../astria/README.zh.md)，模型可见工具见 [`dsh-tool-codegraph`](../tool-codegraph/README.zh.md)。符号级导航属于 `ctx.lsp`，不属于本接缝。
+`dsh-codegraph` 定义代码图能力接缝：一个作用域至多持有一个提供方，查询是十个归一化只读操作（`repoMap`、`query`、`explain`、`path`、`affected`、`stats`、`export`、`hubs`、`communities`、`status`），每个结果都是带显式截断事实的有界文本 — `export` 额外把可查看的图工件写入调用方持有的目的地。组合代码图后端或消费者时使用本包；参考提供方见 [`dsh-astria`](../astria/README.zh.md)，模型可见工具见 [`dsh-tool-codegraph`](../tool-codegraph/README.zh.md)。符号级导航属于 `ctx.lsp`，不属于本接缝。
 
 ## 目录
 
@@ -40,7 +40,7 @@ export function apply(ctx: Context): void {
   ctx.codeGraph.registerProvider({
     id: CodeGraphProviderId('my-backend'),
     async query(request: CodeGraphQueryRequest): Promise<CodeGraphResult> {
-      // answer request.query (one of the six operations) for request.root
+      // answer request.query (one of the ten operations) for request.root
       return { kind: 'text', text: 'report', truncated: false }
     },
     async refresh(request: CodeGraphRefreshRequest): Promise<CodeGraphResult> {
@@ -62,7 +62,7 @@ export function apply(ctx: Context): void {
 <summary>实现内部 — 点击展开</summary>
 
 - **单提供方槽位。** 每个作用域一个提供方：第二个注册在任何变更之前抛出 `CODEGRAPH_CONFLICT`，槽位的释放器随注册纤程一同归还。这镜像了单提供方接缝（会话标题）而非 `ctx.lsp` 的按扩展名表，因为一个工作区只有一张图，而不是每类文件一张。
-- **封闭操作联合类型。** `CodeGraphQuery` 以六个操作判别，`CODEGRAPH_OPERATIONS` 是同包内保有的运行时元组，schema 枚举与校验器都从同一列表派生；新增操作是接缝、提供方与工具的编译期强制变更。请求是 `{ root, query }` 包装，因此 root 永不被默认。
+- **封闭操作联合类型。** `CodeGraphQuery` 以十个操作判别，`CODEGRAPH_OPERATIONS` 是同包内保有的运行时元组，schema 枚举与校验器都从同一列表派生；新增操作是接缝、提供方与工具的编译期强制变更。九个操作以有界文本回答；`export` 携带其 `format` 与目的地 `out` 路径，因此放置始终归调用方所有。请求是 `{ root, query }` 包装，因此 root 永不被默认。
 - **单臂结果联合。** `CodeGraphResult` 为 `{ kind: 'text', text, truncated }`；`truncated` 报告提供方自身的输出上限，区别于任何消费者侧的渲染上限。第二个变体（例如结构化位置）将让消费者按 `kind` 分支。
 - **刷新由调用方调度。** `refresh` 运行提供方的构建流水线且从不自行决定放置：模型可见工具通过 `ctx.jobs` 将其移出回合，编辑后监听器自行调度。
 

@@ -35,7 +35,9 @@ export { AstriaCliProvider } from './provider.ts'
 export type { AstriaProviderSpec, AstriaSpawner } from './provider.ts'
 export { AstriaServerProvider } from './server-provider.ts'
 export { AstriaMcpServer, mcpToolCall } from './server.ts'
-export type { AstriaServerSpec, McpToolCall } from './server.ts'
+export type { AstriaServerSpec, McpServedQuery, McpToolCall } from './server.ts'
+export { parseAstriaStatus, renderAstriaStatus } from './status.ts'
+export type { AstriaStatusFacts } from './status.ts'
 
 /** This producer's job kind on `ctx.jobs` (background graph refreshes). */
 declare module '@deepseek-ai/dsh-jobs' {
@@ -189,8 +191,8 @@ export async function apply(ctx: Context, config: Config): Promise<void> {
   assertPositiveInteger('maxStderrBytes', resolved.maxStderrBytes)
   assertTimer('killGraceMs', resolved.killGraceMs)
   assertTimer('serverTimeoutMs', resolved.serverTimeoutMs)
-  if (resolved.transport !== 'cli' && resolved.transport !== 'server') {
-    throw new Error(`astria: transport must be "cli" or "server", got ${JSON.stringify(resolved.transport)}`)
+  if (config.transport !== undefined && config.transport !== 'cli' && config.transport !== 'server') {
+    throw new Error(`astria: transport must be "cli" or "server", got ${JSON.stringify(config.transport)}`)
   }
 
   const setupAbort = new AbortController()

@@ -1,5 +1,5 @@
 ---
-description: "The model-facing code_graph tool: six read-only repository-level graph operations with per-operation argument validation, derived token budgets, and complete-result character capping, for users and maintainers composing model code-graph questions."
+description: "The model-facing code_graph tool: ten read-only repository-level graph operations with per-operation argument validation, derived token budgets, and complete-result character capping, for users and maintainers composing model code-graph questions."
 kind: "package-reference"
 ---
 
@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-`dsh-tool-codegraph` lets a model ask repository-level questions and rebuild the graph through one tool: six query operations (overview repo map, natural-language query, symbol explanation, shortest path, blast radius, graph statistics) and two refresh operations (`build`, `update`). Refreshes run as `ctx.jobs` background jobs when a registry and an owning agent exist, returning the job id at once, and foreground otherwise. Arguments are validated per operation, results are capped in complete rendered characters, and the provider's token budget derives from that cap. The package requires a registered `ctx.codeGraph` provider and a session workspace root; choose it for repository-level structure, not ordinary navigation.
+`dsh-tool-codegraph` lets a model ask repository-level questions and rebuild the graph through one tool: ten query operations (repo map, natural-language query, symbol explanation, shortest path, blast radius, graph statistics, viewable-artifact export, hub nodes, communities, freshness status) and two refresh operations (`build`, `update`). Refreshes run as `ctx.jobs` background jobs when a registry and an owning agent exist and foreground otherwise. Arguments are validated per operation, results are capped in complete rendered characters, and the provider's token budget derives from that cap. The package requires a registered `ctx.codeGraph` provider and a session workspace root; choose it for repository-level structure, not ordinary navigation.
 
 ## Table of Contents
 
@@ -45,9 +45,13 @@ Every query returns the provider's complete report text plus a `truncated` fact.
 
 The generated [configuration catalog](../../../docs/config-catalog.md#deepseek-aidsh-tool-codegraph) is the exhaustive source for every accepted field.
 
+### The export operation
+
+`export` takes an optional `format` (`html`, the default interactive page, or `svg`) and writes one deterministic viewable artifact per workspace at `.astria/graph-view.<format>` — the model receives the workspace-relative path, and the result's presentation meta carries it so a capable client offers an open-the-graph action. A missing graph fails like any query: the automatic background build starts and the result says when to retry.
+
 ### Failures and recovery
 
-The tool requires a session workspace root (`header.cwd`) with no fallback; absence fails with `CODEGRAPH_WORKSPACE_REQUIRED` before any query. No registered provider fails with `CODEGRAPH_UNAVAILABLE`, and a failed astria run arrives as `CODEGRAPH_EXIT` carrying the CLI's stderr guidance.
+The tool requires a session workspace root (`header.cwd`) with no fallback; absence fails with `CODEGRAPH_WORKSPACE_REQUIRED` before any query. No registered provider fails with `CODEGRAPH_UNAVAILABLE`, and a failed astria run arrives as `CODEGRAPH_EXIT` carrying the CLI's stderr guidance. `hubs`, `communities`, and `status` need astria ≥ 1.0.6; an older CLI's unknown-command failure surfaces as `CODEGRAPH_EXIT` with its own message.
 
 -----
 

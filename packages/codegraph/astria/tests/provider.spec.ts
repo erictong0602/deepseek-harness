@@ -114,6 +114,45 @@ describe('AstriaCliProvider.query', () => {
     await expect(provider.query(statsRequest)).rejects.toThrow(expect.objectContaining({ code: 'CODEGRAPH_NO_GRAPH' }))
   })
 
+  it('normalizes the status JSON envelope into the stable freshness report', async () => {
+    const envelope = JSON.stringify({
+      status: 'stale',
+      ageMinutes: 45,
+      nodes: 120,
+      edges: 340,
+      communities: 9,
+      files: 40,
+      builtAt: '1790520977',
+      astriaVersion: '1.0.5',
+      extractionHashVersion: 'v9',
+      currentExtractionHashVersion: 'v10',
+      extractionOutdated: true,
+    })
+    const { specs, spawn } = recordingSpawner(() => fakeHandle({ exitCode: 0, signal: null }, envelope))
+    const provider = new Astria.AstriaCliProvider(spec, spawn)
+    const result = await provider.query({ root: '/ws', query: { operation: 'status' } })
+    expect(specs[0]).toMatchObject({ argv: ['/bin/astria', '--global', 'status', '--json', '--graph', '/ws'] })
+    expect(result.truncated).toBe(false)
+    expect(result.text).toContain('Status: stale')
+    expect(result.text).toContain('by astria 1.0.5')
+    expect(result.text).toContain('Extraction rules: v9')
+    expect(result.text).toContain('predates this astria\'s extraction rules')
+  })
+
+  it('maps a status envelope reporting a missing graph to CODEGRAPH_NO_GRAPH', async () => {
+    const { spawn } = recordingSpawner(() => fakeHandle({ exitCode: 0, signal: null }, JSON.stringify({ status: 'missing' })))
+    const provider = new Astria.AstriaCliProvider(spec, spawn)
+    await expect(provider.query({ root: '/ws', query: { operation: 'status' } }))
+      .rejects.toThrow(expect.objectContaining({ code: 'CODEGRAPH_NO_GRAPH' }))
+  })
+
+  it('passes status stdout through unchanged when it is not the JSON envelope', async () => {
+    const { spawn } = recordingSpawner(() => fakeHandle({ exitCode: 0, signal: null }, 'Status: fresh (3 min ago)'))
+    const provider = new Astria.AstriaCliProvider(spec, spawn)
+    await expect(provider.query({ root: '/ws', query: { operation: 'status' } }))
+      .resolves.toEqual({ kind: 'text', text: 'Status: fresh (3 min ago)', truncated: false })
+  })
+
   it('names the terminating signal when there is no exit code', async () => {
     const { spawn } = recordingSpawner(() => fakeHandle({ exitCode: null, signal: 'SIGKILL' }))
     const provider = new Astria.AstriaCliProvider(spec, spawn)

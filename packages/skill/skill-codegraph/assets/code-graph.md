@@ -10,7 +10,10 @@ When the `code_graph` tool is available, prefer the graph over raw file scanning
 | How does X work / connect to Y? | `query` with natural-language terms; follow up with `explain` on a specific node. |
 | What breaks if I change X? | `affected` on the symbol or file path BEFORE editing — the blast radius is reverse reachability. |
 | How do A and B relate? | `path` traces the shortest connection; `directed` follows only caller-to-callee edges. |
-| Is the graph healthy? | `stats` reports node, edge, community, and file counts. |
+| Which symbols/files hold the graph together? | `hubs` lists the highest-degree nodes — the load-bearing places to treat carefully. |
+| What are the major subsystems? | `communities` lists detected clusters with their size and cohesion. |
+| Is the graph healthy and current? | `stats` reports node, edge, community, and file counts; `status` reports staleness, which astria built the graph, and whether it predates the current extraction rules. |
+| Can the user view the graph? | `export` writes an html page or svg image and reports its path. |
 
 ## Workflow rules
 
@@ -19,6 +22,7 @@ When the `code_graph` tool is available, prefer the graph over raw file scanning
 3. **Page deep results.** A truncated `query` result shows a continuation token — repeat the call with `cursor` to get the next slice instead of re-querying.
 4. **Graph for structure, search for text, lsp for symbols.** Use `search`/`read` for exact text, `lsp` for a symbol's definition/references at a position, and the graph for repository-level relationships. Do not use the graph to locate a single definition.
 5. **A missing graph is not fatal.** If a query reports no graph, call `build` (a background job starts and the result says when to retry) or ask the user to run `astria run .`.
+6. **Trust a current graph, refresh a stale one.** Before answering from a graph you did not build this session, `status` tells you its age, build time, and tool versions; a stale or extraction-outdated answer means `update` before trusting structure-sensitive conclusions.
 
 ## After editing
 

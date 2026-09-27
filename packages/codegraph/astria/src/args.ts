@@ -41,6 +41,17 @@ export function buildAstriaArgs(request: CodeGraphQueryRequest): string[] {
       ]
     case 'stats':
       return ['stats', '--graph', root]
+    case 'export':
+      return ['export', '--format', query.format, '--out', query.out, '--graph', root]
+    // The three astria 1.0.6 operations: hub and community answers gained CLI
+    // parity, and status rides its machine-readable envelope so the provider
+    // normalizes freshness facts instead of parsing prose.
+    case 'hubs':
+      return ['god-nodes', '--graph', root]
+    case 'communities':
+      return ['communities', '--graph', root]
+    case 'status':
+      return ['status', '--json', '--graph', root]
     /* v8 ignore next -- exhaustive over the closed CodeGraphQuery union; unreachable. */
     default:
       return assertNever(query, 'astria query')

@@ -1,23 +1,27 @@
 /**
- * Model-facing `code_graph` tool over `ctx.codeGraph`. One read-only tool with six operations
- * (`repoMap`/`query`/`explain`/`path`/`affected`/`stats`); it validates per-operation arguments,
- * requires the session workspace with no fallback, derives the provider's token budget from the
- * result-character cap, and caps and renders reports. It runtime-injects only `tools`, `codeGraph`,
- * and `systemPrompt` and imports no provider.
+ * Model-facing `code_graph` tool over `ctx.codeGraph`. One read-only tool with ten operations
+ * (`repoMap`/`query`/`explain`/`path`/`affected`/`stats`/`export`/`hubs`/`communities`/`status`);
+ * it validates per-operation arguments, requires the session workspace with no fallback, derives the
+ * provider's token budget from the result-character cap, and caps and renders reports. `export`
+ * writes a viewable graph artifact under the workspace's `.astria` directory and reports its
+ * workspace-relative path. It runtime-injects only `tools`, `codeGraph`, and `systemPrompt` and
+ * imports no provider.
  *
  * Namespace plugin (named exports, no default export).
  * @module @deepseek-ai/dsh-tool-codegraph
  */
 
+import { join } from 'node:path'
 import type { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import { CodeGraphError, refreshJobHooks } from '@deepseek-ai/dsh-codegraph'
-import type { CodeGraphQuery, CodeGraphRefreshMode, CodeGraphRefreshRequest, CodeGraphService } from '@deepseek-ai/dsh-codegraph'
+import type { CodeGraphExportFormat, CodeGraphQuery, CodeGraphRefreshMode, CodeGraphRefreshRequest, CodeGraphService } from '@deepseek-ai/dsh-codegraph'
 import type { JobId, JobRegistry, JobSpec } from '@deepseek-ai/dsh-jobs'
 import { MAX_TIMER_DELAY_MS } from '@deepseek-ai/dsh-timeout'
 import {
   budgetForChars,
+  codeGraphMetaFromValue,
   CODEGRAPH_TOOL_OPERATIONS,
   DEFAULT_MAX_RESULT_CHARS,
   formatReport,
@@ -29,6 +33,7 @@ import { sessionCwd } from './session-cwd.ts'
 
 export {
   budgetForChars,
+  codeGraphMetaFromValue,
   CODEGRAPH_OPERATIONS,
   CODEGRAPH_TOOL_OPERATIONS,
   DEFAULT_MAX_RESULT_CHARS,
@@ -36,6 +41,7 @@ export {
   parseCodeGraphArgs,
   presentCodeGraphCall,
 } from './render.ts'
+export type { CodeGraphExportMeta, CodeGraphToolValue } from './render.ts'
 export { sessionCwd } from './session-cwd.ts'
 
 /** This producer's job kind on `ctx.jobs` (background graph builds and refreshes). */
@@ -95,13 +101,13 @@ export function apply(ctx: Context, config: Config): void {
   ctx.tools.register(defineTool({
     name: 'code_graph',
     description:
-      'Query the repository code graph. operation is one of repoMap, query, explain, path, affected, stats, build, update. question is search terms for query; node is a symbol label or id for explain and affected; source and target are node labels for path. depth limits traversal hops; directed follows only caller-to-callee edges; cursor continues a truncated query from its shown token. build and update rebuild the workspace graph as a background job and return the job id.',
+      'Query the repository code graph. operation is one of repoMap, query, explain, path, affected, stats, export, hubs, communities, status, build, update. question is search terms for query; node is a symbol label or id for explain and affected; source and target are node labels for path. depth limits traversal hops; directed follows only caller-to-callee edges; cursor continues a truncated query from its shown token. export writes a viewable graph artifact (format html or svg) and reports its path for the user to open; hubs lists the highest-degree hub nodes; communities lists detected communities; status reports graph freshness, build time, and tool versions. build and update rebuild the workspace graph as a background job and return the job id.',
     parameters: {
       operation: {
         type: 'string',
         required: true,
         enum: [...CODEGRAPH_TOOL_OPERATIONS],
-        description: 'repoMap, query, explain, path, affected, stats, build, or update.',
+        description: 'repoMap, query, explain, path, affected, stats, export, hubs, communities, status, build, or update.',
       },
       question: { type: 'string', description: 'query only: natural-language search terms.' },
       node: { type: 'string', description: 'explain and affected only: a symbol label, id, or source file path.' },
@@ -110,10 +116,22 @@ export function apply(ctx: Context, config: Config): void {
       depth: { type: 'number', description: 'query and affected only: traversal hop limit (positive integer).' },
       directed: { type: 'boolean', description: 'query and path only: follow only caller-to-callee edges.' },
       cursor: { type: 'number', description: 'query only: continuation token shown by a previous truncated result; fetches the next slice.' },
+      format: { type: 'string', enum: ['html', 'svg'], description: 'export only: html interactive page (default) or svg static image.' },
     },
     output: {
       schema: {
         oneOf: [
+          {
+            type: 'object',
+            additionalProperties: false,
+            properties: {
+              kind: { type: 'string', required: true, const: 'export' },
+              format: { type: 'string', required: true, enum: ['html', 'svg'] },
+              path: { type: 'string', required: true },
+              text: { type: 'string', required: true },
+              truncated: { type: 'boolean', required: true },
+            },
+          },
           {
             type: 'object',
             additionalProperties: false,
@@ -139,8 +157,16 @@ export function apply(ctx: Context, config: Config): void {
             return [{ type: 'text', text: formatReport(value.text, value.truncated, resolved.maxResultChars) }]
           case 'background':
             return [{ type: 'text', text: `started background job ${value.jobId}` }]
+          case 'export': {
+            const confirmation = value.text.trim() === '' ? '' : `${value.text.trim()}\n`
+            return [{
+              type: 'text',
+              text: formatReport(`${confirmation}graph view artifact: ${value.path}`, value.truncated, resolved.maxResultChars),
+            }]
+          }
         }
       },
+      presentationMeta: (_args, value) => codeGraphMetaFromValue(value),
     },
     timeoutMs: resolved.timeoutMs,
     async execute(args, exec) {
@@ -166,6 +192,14 @@ export function apply(ctx: Context, config: Config): void {
         return { kind: 'text' as const, text: refreshed.text, truncated: refreshed.truncated }
       }
       try {
+        if (input.operation === 'export') {
+          const target = exportArtifactTarget(root, input.format)
+          const result = await ctx.codeGraph.query(
+            { root, query: { operation: 'export', format: input.format, out: target.out } },
+            exec.signal,
+          )
+          return { kind: 'export' as const, format: input.format, path: target.path, text: result.text, truncated: result.truncated }
+        }
         const result = await ctx.codeGraph.query(
           { root, query: buildSeamQuery(input, budgetForChars(resolved.maxResultChars)) },
           exec.signal,
@@ -215,8 +249,37 @@ function startRefreshJob(
   })
 }
 
+/**
+ * The export artifact's placement: one deterministic file per workspace and format, so a replayed
+ * card names the artifact the run wrote and a rebuild replaces it in place.
+ */
+export interface CodeGraphExportTarget {
+  /** Absolute destination passed as the CLI's `--out`, joined in the execution world's syntax. */
+  readonly out: string
+  /** Workspace-relative POSIX path, persisted for clients and reported to the model. */
+  readonly path: string
+}
+
+/**
+ * Resolve the export artifact's deterministic placement under the workspace's astria state
+ * directory: `<root>/.astria/graph-view.<format>`. The directory exists whenever a graph does, so a
+ * successful export never needs to create it.
+ * @param root - the session workspace root the graph was built for.
+ * @param format - the viewable artifact format.
+ * @returns the absolute CLI destination and the workspace-relative POSIX path.
+ */
+export function exportArtifactTarget(root: string, format: CodeGraphExportFormat): CodeGraphExportTarget {
+  return {
+    out: join(root, '.astria', `graph-view.${format}`),
+    path: `.astria/graph-view.${format}`,
+  }
+}
+
 /** Build the seam query from validated input plus the derived token budget. */
-function buildSeamQuery(input: CodeGraphQueryInput, budgetTokens: number): CodeGraphQuery {
+function buildSeamQuery(
+  input: Exclude<CodeGraphQueryInput, { operation: 'export' }>,
+  budgetTokens: number,
+): CodeGraphQuery {
   switch (input.operation) {
     case 'repoMap':
       return { operation: 'repoMap', budgetTokens }
@@ -246,6 +309,12 @@ function buildSeamQuery(input: CodeGraphQueryInput, budgetTokens: number): CodeG
       }
     case 'stats':
       return { operation: 'stats' }
+    case 'hubs':
+      return { operation: 'hubs' }
+    case 'communities':
+      return { operation: 'communities' }
+    case 'status':
+      return { operation: 'status' }
   }
 }
 

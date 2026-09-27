@@ -4671,6 +4671,10 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export interface ClientArtifactBaseline {\n    readonly path: string;\n    readonly mtimeMs: number;\n    readonly ctimeMs: number;\n    readonly size: number;\n}',
   },
   {
+    name: 'CodeGraphExportFormat',
+    declaration: 'export type CodeGraphExportFormat = \'html\' | \'svg\';',
+  },
+  {
     name: 'CodeGraphProvider',
     declaration: 'export interface CodeGraphProvider {\n    readonly id: CodeGraphProviderId;\n    query(request: CodeGraphQueryRequest, signal?: AbortSignal): Promise<CodeGraphResult>;\n    refresh(request: CodeGraphRefreshRequest, signal?: AbortSignal): Promise<CodeGraphResult>;\n}',
   },
@@ -4680,7 +4684,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'CodeGraphQuery',
-    declaration: 'export type CodeGraphQuery = {\n    readonly operation: \'repoMap\';\n    readonly budgetTokens?: number;\n} | {\n    readonly operation: \'query\';\n    readonly question: string;\n    readonly depth?: number;\n    readonly directed?: boolean;\n    readonly cursor?: number;\n    readonly budgetTokens?: number;\n} | {\n    readonly operation: \'explain\';\n    readonly node: string;\n} | {\n    readonly operation: \'path\';\n    readonly source: string;\n    readonly target: string;\n    readonly directed?: boolean;\n} | {\n    readonly operation: \'affected\';\n    readonly node: string;\n    readonly depth?: number;\n} | {\n    readonly operation: \'stats\';\n};',
+    declaration: 'export type CodeGraphQuery = {\n    readonly operation: \'repoMap\';\n    readonly budgetTokens?: number;\n} | {\n    readonly operation: \'query\';\n    readonly question: string;\n    readonly depth?: number;\n    readonly directed?: boolean;\n    readonly cursor?: number;\n    readonly budgetTokens?: number;\n} | {\n    readonly operation: \'explain\';\n    readonly node: string;\n} | {\n    readonly operation: \'path\';\n    readonly source: string;\n    readonly target: string;\n    readonly directed?: boolean;\n} | {\n    readonly operation: \'affected\';\n    readonly node: string;\n    readonly depth?: number;\n} | {\n    readonly operation: \'stats\';\n} | {\n    readonly operation: \'export\';\n    readonly format: CodeGraphExportFormat;\n    readonly out: string;\n} | {\n    readonly operation: \'hubs\';\n} | {\n    readonly operation: \'communities\';\n} | {\n    readonly operation: \'status\';\n};',
   },
   {
     name: 'CodeGraphQueryRequest',

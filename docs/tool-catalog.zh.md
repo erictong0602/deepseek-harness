@@ -1735,7 +1735,7 @@ lsp 工具将提供方选择和语言服务器子进程置于 ctx.lsp 之后，�
 
 ### `code_graph`
 
-查询仓库代码图，或重建图。operation 可取 repoMap、query、explain、path、affected、stats、build 或 update。question 是 query 的搜索词；node 是 explain 与 affected 的符号标签或 id；source 和 target 是 path 的节点标签。depth 限制遍历跳数；directed 只沿调用方到被调用方的边；cursor 从截断查询展示的令牌续读。build 与 update 把工作区图的重建作为后台任务启动并返回任务 id。
+查询仓库代码图，或重建图。operation 可取 repoMap、query、explain、path、affected、stats、export、hubs、communities、status、build 或 update。question 是 query 的搜索词；node 是 explain 与 affected 的符号标签或 id；source 和 target 是 path 的节点标签。depth 限制遍历跳数；directed 只沿调用方到被调用方的边；cursor 从截断查询展示的令牌续读。export 写入可查看的图工件（format 为 html 或 svg）并报告其路径供用户打开；hubs 列出度最高的枢纽节点；communities 列出检测到的社区；status 报告图的新鲜度、构建时间与工具版本。build 与 update 把工作区图的重建作为后台任务启动并返回任务 id。
 
 ```json
 {
@@ -1743,7 +1743,7 @@ lsp 工具将提供方选择和语言服务器子进程置于 ctx.lsp 之后，�
   "properties": {
     "operation": {
       "type": "string",
-      "description": "repoMap, query, explain, path, affected, stats, build, or update.",
+      "description": "repoMap, query, explain, path, affected, stats, export, hubs, communities, status, build, or update.",
       "enum": [
         "repoMap",
         "query",
@@ -1751,6 +1751,10 @@ lsp 工具将提供方选择和语言服务器子进程置于 ctx.lsp 之后，�
         "path",
         "affected",
         "stats",
+        "export",
+        "hubs",
+        "communities",
+        "status",
         "build",
         "update"
       ]
@@ -1782,6 +1786,14 @@ lsp 工具将提供方选择和语言服务器子进程置于 ctx.lsp 之后，�
     "cursor": {
       "type": "number",
       "description": "query only: continuation token shown by a previous truncated result; fetches the next slice."
+    },
+    "format": {
+      "type": "string",
+      "description": "export only: html interactive page (default) or svg static image.",
+      "enum": [
+        "html",
+        "svg"
+      ]
     }
   },
   "required": [

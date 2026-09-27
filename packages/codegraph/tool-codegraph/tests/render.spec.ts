@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   budgetForChars,
+  codeGraphMetaFromValue,
   formatReport,
   parseCodeGraphArgs,
   presentCodeGraphCall,
@@ -45,6 +46,27 @@ describe('parseCodeGraphArgs', () => {
   it('rejects a non-positive or fractional depth', () => {
     expect(() => parseCodeGraphArgs({ operation: 'query', question: 'q', depth: 0 })).toThrow(/depth/)
     expect(() => parseCodeGraphArgs({ operation: 'affected', node: 'X', depth: 1.5 })).toThrow(/depth/)
+  })
+
+  it('defaults the export format to html and keeps svg', () => {
+    expect(parseCodeGraphArgs({ operation: 'export' })).toEqual({ operation: 'export', format: 'html' })
+    expect(parseCodeGraphArgs({ operation: 'export', format: 'svg' })).toEqual({ operation: 'export', format: 'svg' })
+  })
+
+  it('rejects an unknown export format', () => {
+    expect(() => parseCodeGraphArgs({ operation: 'export', format: 'png' })).toThrow(/format/)
+  })
+})
+
+describe('codeGraphMetaFromValue', () => {
+  it('projects the export artifact path', () => {
+    expect(codeGraphMetaFromValue({ kind: 'export', format: 'svg', path: '.astria/graph-view.svg', text: 'Exported SVG', truncated: false }))
+      .toEqual({ kind: 'export', format: 'svg', path: '.astria/graph-view.svg' })
+  })
+
+  it('projects null for the arms without card facts', () => {
+    expect(codeGraphMetaFromValue({ kind: 'text', text: 'report', truncated: false })).toBeNull()
+    expect(codeGraphMetaFromValue({ kind: 'background', jobId: 'codegraph-1' })).toBeNull()
   })
 })
 
@@ -100,5 +122,9 @@ describe('presentCodeGraphCall', () => {
 
   it('falls back to the operation for subject-free calls', () => {
     expect(presentCodeGraphCall({ operation: 'stats' }).title).toBe('code_graph stats stats')
+  })
+
+  it('titles an export call with its format', () => {
+    expect(presentCodeGraphCall({ operation: 'export', format: 'svg' }).title).toBe('code_graph export svg')
   })
 })

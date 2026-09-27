@@ -1,12 +1,12 @@
 /**
  * Service Definition for the code-graph capability seam (`ctx.codeGraph`): a sole-provider registry
  * over normalized repository-map / natural-language-query / symbol-explain / shortest-path /
- * impact / stats queries with bounded text results.
+ * impact / stats / artifact-export / hub / community / freshness queries with bounded text results.
  *
  * One provider per scope reserves the slot atomically: {@link CodeGraph.registerProvider} validates
  * the id before mutating, a conflicting registration publishes nothing, and the disposer releases
- * the slot with the calling fiber. The seam exposes exactly the six operations and no graph-store or
- * process escape hatch.
+ * the slot with the calling fiber. The seam exposes exactly the ten operations and no graph-store
+ * or process escape hatch.
  * @module @deepseek-ai/dsh-codegraph
  */
 
@@ -25,6 +25,7 @@ export { CodeGraphProviderId } from './brand.ts'
 export { refreshJobHooks } from './jobs.ts'
 export type { RefreshJobOptions } from './jobs.ts'
 export type {
+  CodeGraphExportFormat,
   CodeGraphOperation,
   CodeGraphProvider,
   CodeGraphQuery,
@@ -36,10 +37,21 @@ export type {
 } from './types.ts'
 
 /**
- * The six operations as a runtime tuple, kept beside the closed {@link CodeGraphOperation} union so
+ * The ten operations as a runtime tuple, kept beside the closed {@link CodeGraphOperation} union so
  * schema enums and validators derive from one list. A new operation changes both together.
  */
-export const CODEGRAPH_OPERATIONS: readonly CodeGraphOperation[] = ['repoMap', 'query', 'explain', 'path', 'affected', 'stats']
+export const CODEGRAPH_OPERATIONS: readonly CodeGraphOperation[] = [
+  'repoMap',
+  'query',
+  'explain',
+  'path',
+  'affected',
+  'stats',
+  'export',
+  'hubs',
+  'communities',
+  'status',
+]
 
 declare module '@deepseek-ai/cordis' {
   interface Context {

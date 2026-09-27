@@ -1,5 +1,5 @@
 ---
-description: "模型可见的 code_graph 工具：六个只读仓库级图操作，按操作校验参数、推导令牌预算并对完整结果按字符数封顶，供组合模型代码图问题的用户与维护者使用。"
+description: "模型可见的 code_graph 工具：十个只读仓库级图操作，按操作校验参数、推导令牌预算并对完整结果按字符数封顶，供组合模型代码图问题的用户与维护者使用。"
 kind: "package-reference"
 ---
 
@@ -9,7 +9,7 @@ kind: "package-reference"
 
 ## 概述
 
-`dsh-tool-codegraph` 让模型通过一个工具提出仓库级问题并重建图：六个查询操作（概览仓库图、自然语言查询、符号解释、最短路径、影响范围、图统计）与两个刷新操作（`build`、`update`）。当任务注册表与所属 agent 存在时，刷新经 `ctx.jobs` 作为后台任务运行并立即返回任务 id，否则前台运行。参数按操作校验，结果以完整渲染字符数封顶，提供方的令牌预算由该上限推导。本包需要已注册的 `ctx.codeGraph` 提供方和会话工作区根目录；本工具用于仓库级结构，而非普通导航。
+`dsh-tool-codegraph` 让模型通过一个工具提出仓库级问题并重建图：十个查询操作（概览仓库图、自然语言查询、符号解释、最短路径、影响范围、图统计、可查看工件导出、枢纽节点、社区、新鲜度状态）与两个刷新操作（`build`、`update`）。当任务注册表与所属 agent 存在时，刷新经 `ctx.jobs` 作为后台任务运行并立即返回任务 id，否则前台运行。参数按操作校验，结果以完整渲染字符数封顶，提供方的令牌预算由该上限推导。本包需要已注册的 `ctx.codeGraph` 提供方和会话工作区根目录；本工具用于仓库级结构，而非普通导航。
 
 ## 目录
 
@@ -45,9 +45,13 @@ kind: "package-reference"
 
 生成的[配置目录](../../../docs/config-catalog.zh.md#deepseek-aidsh-tool-codegraph)是每个可接受字段的详尽来源。
 
+### 导出操作
+
+`export` 接受可选的 `format`（默认交互页面 `html`，或 `svg`），并为每个工作区写入一个确定性的可查看工件 `.astria/graph-view.<format>` — 模型收到工作区相对路径，结果的呈现元数据携带该路径，使有能力的客户端可以提供打开图的操作。缺失的图与任何查询一样失败：自动后台构建启动，结果会说明何时重试。
+
 ### 失败与恢复
 
-本工具需要会话工作区根目录（`header.cwd`），没有回退；缺失时在任何查询之前以 `CODEGRAPH_WORKSPACE_REQUIRED` 失败。没有注册提供方时以 `CODEGRAPH_UNAVAILABLE` 失败，astria 运行失败以携带 CLI stderr 指引的 `CODEGRAPH_EXIT` 到达。
+本工具需要会话工作区根目录（`header.cwd`），没有回退；缺失时在任何查询之前以 `CODEGRAPH_WORKSPACE_REQUIRED` 失败。没有注册提供方时以 `CODEGRAPH_UNAVAILABLE` 失败，astria 运行失败以携带 CLI stderr 指引的 `CODEGRAPH_EXIT` 到达。`hubs`、`communities` 与 `status` 需要 astria ≥ 1.0.6；旧 CLI 的未知命令失败会以其自身消息呈现为 `CODEGRAPH_EXIT`。
 
 -----
 

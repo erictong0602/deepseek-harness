@@ -7,11 +7,11 @@
 
 import type { GenericCallView } from '@deepseek-ai/dsh-tools'
 import { CODEGRAPH_OPERATIONS } from '@deepseek-ai/dsh-codegraph'
-import type { CodeGraphOperation, CodeGraphQuery, CodeGraphRefreshMode } from '@deepseek-ai/dsh-codegraph'
+import type { CodeGraphExportFormat, CodeGraphOperation, CodeGraphQuery, CodeGraphRefreshMode } from '@deepseek-ai/dsh-codegraph'
 
 export { CODEGRAPH_OPERATIONS }
 
-/** The six query operations plus the two refresh operations, as the tool's schema enum. */
+/** The ten query operations plus the two refresh operations, as the tool's schema enum. */
 export const CODEGRAPH_TOOL_OPERATIONS: readonly (CodeGraphOperation | CodeGraphRefreshMode)[] = [...CODEGRAPH_OPERATIONS, 'build', 'update']
 
 /** Default cap on the complete rendered tool result, including truncation metadata. */
@@ -19,8 +19,9 @@ export const DEFAULT_MAX_RESULT_CHARS = 16_000
 
 /**
  * Validated `code_graph` arguments: the seam's query union with the producer-owned `budgetTokens`
- * arm field distributively removed plus the two refresh operations, so each operation carries
- * exactly its required subject plus optional refinements and the unions cannot drift apart.
+ * arm field and the tool-owned `out` placement field distributively removed plus the two refresh
+ * operations, so each operation carries exactly its required subject plus optional refinements and
+ * the unions cannot drift apart.
  */
 export type CodeGraphQueryInput = ToolQueryOf<CodeGraphQuery>
 
@@ -33,7 +34,7 @@ export type CodeGraphToolInput = CodeGraphQueryInput
   | { readonly operation: 'update' }
 
 /** Distributive `Omit`: apply the key removal to every arm of the query union. */
-type ToolQueryOf<Q> = Q extends unknown ? Omit<Q, 'budgetTokens'> : never
+type ToolQueryOf<Q> = Q extends unknown ? Omit<Q, 'budgetTokens' | 'out'> : never
 
 /** The raw, schema-typed argument shape. */
 export interface CodeGraphToolArgs {
@@ -45,6 +46,7 @@ export interface CodeGraphToolArgs {
   readonly depth?: number
   readonly directed?: boolean
   readonly cursor?: number
+  readonly format?: string
 }
 
 /**
@@ -62,6 +64,9 @@ export function parseCodeGraphArgs(args: CodeGraphToolArgs): CodeGraphToolInput 
   switch (args.operation) {
     case 'repoMap':
     case 'stats':
+    case 'hubs':
+    case 'communities':
+    case 'status':
     case 'build':
     case 'update':
       return { operation: args.operation }
@@ -88,10 +93,12 @@ export function parseCodeGraphArgs(args: CodeGraphToolArgs): CodeGraphToolInput 
         node: requiredText(args.node, 'node'),
         ...depthField(args.depth),
       }
+    case 'export':
+      return { operation: args.operation, format: formatField(args.format) }
   }
 }
 
-/** Whether a string is one of the eight operations. */
+/** Whether a string is one of the twelve operations. */
 function isOperation(value: string): value is CodeGraphOperation | CodeGraphRefreshMode {
   return (CODEGRAPH_TOOL_OPERATIONS as readonly string[]).includes(value)
 }
@@ -119,6 +126,38 @@ function cursorField(cursor: number | undefined): { cursor?: number } {
   if (cursor === undefined) return {}
   if (!Number.isInteger(cursor) || cursor < 0) throw new Error('cursor must be a non-negative integer')
   return { cursor }
+}
+
+/** The export format, defaulting to the interactive page; anything else is rejected. */
+function formatField(format: string | undefined): 'html' | 'svg' {
+  if (format === undefined) return 'html'
+  if (format !== 'html' && format !== 'svg') throw new Error('format must be "html" or "svg"')
+  return format
+}
+
+/** The `code_graph` tool's canonical output value: one arm per settled outcome. */
+export type CodeGraphToolValue =
+  | { readonly kind: 'text'; readonly text: string; readonly truncated: boolean }
+  | { readonly kind: 'background'; readonly jobId: string }
+  | { readonly kind: 'export'; readonly format: CodeGraphExportFormat; readonly path: string; readonly text: string; readonly truncated: boolean }
+
+/** Durable card facts for one settled export: where the viewable artifact landed. */
+export type CodeGraphExportMeta = {
+  readonly kind: 'export'
+  readonly format: CodeGraphExportFormat
+  readonly path: string
+}
+
+/**
+ * Project one settled tool value into durable card data: the export arm carries its
+ * workspace-relative artifact path, and every other arm projects `null` — it has no card facts a
+ * client cannot recover from the result content, and `null` persists exactly like absent meta for
+ * the narrowers that read it back.
+ * @param value - the settled canonical tool value.
+ * @returns the export meta, or null for every non-export value.
+ */
+export function codeGraphMetaFromValue(value: CodeGraphToolValue): CodeGraphExportMeta | null {
+  return value.kind === 'export' ? { kind: 'export', format: value.format, path: value.path } : null
 }
 
 /**
@@ -162,7 +201,9 @@ export function budgetForChars(maxResultChars: number): number {
  */
 export function presentCodeGraphCall(args: CodeGraphToolArgs): GenericCallView {
   const focus = args.question ?? args.node
-    ?? (args.source !== undefined && args.target !== undefined ? `${args.source} -> ${args.target}` : args.operation)
+    ?? (args.source !== undefined && args.target !== undefined ? `${args.source} -> ${args.target}` : undefined)
+    ?? args.format
+    ?? args.operation
   return {
     card: 'generic',
     kind: 'search',

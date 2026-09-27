@@ -1,14 +1,14 @@
 /**
  * The persistent `astria mcp` server: one pooled stdio child per workspace root, speaking
- * newline-delimited JSON-RPC (MCP) over the subprocess seam's piped streams. The seam's six query
- * operations map onto the server's tools; refresh deliberately stays on the one-shot CLI, which the
- * server does not offer. Server-initiated notifications are dropped and requests answered with
+ * newline-delimited JSON-RPC (MCP) over the subprocess seam's piped streams. Six of the seam's query
+ * operations map onto the server's tools; export and refresh deliberately stay on the one-shot CLI,
+ * which the server does not offer. Server-initiated notifications are dropped and requests answered with
  * method-not-found so a chatty server cannot wedge the pipeline.
  * @module @deepseek-ai/dsh-astria/server
  */
 
 import { CodeGraphError } from '@deepseek-ai/dsh-codegraph'
-import type { CodeGraphQueryRequest, CodeGraphResult } from '@deepseek-ai/dsh-codegraph'
+import type { CodeGraphQuery, CodeGraphQueryRequest, CodeGraphResult } from '@deepseek-ai/dsh-codegraph'
 import type { SubprocessHandle } from '@deepseek-ai/dsh-subprocess'
 import { assertNever } from '@deepseek-ai/dsh-util-values'
 import type { AstriaSpawner } from './provider.ts'
@@ -41,12 +41,19 @@ export interface McpToolCall {
 }
 
 /**
+ * The query operations the pooled MCP server answers. `export` has no MCP tool and `status` is a
+ * build-pipeline fact, not a served query — both run through the one-shot CLI, so they are excluded
+ * from this mapping's domain.
+ */
+export type McpServedQuery = Exclude<CodeGraphQuery, { operation: 'export' } | { operation: 'status' }>
+
+/**
  * Map one seam query onto the astria MCP server's tool vocabulary. Argument names match the seam's
  * refinement fields (`budget` carries the producer-derived token budget).
- * @param request - the normalized query plus workspace root.
+ * @param request - the normalized query plus workspace root; the query operation must be MCP-served.
  * @returns the server tool name and its arguments.
  */
-export function mcpToolCall(request: CodeGraphQueryRequest): McpToolCall {
+export function mcpToolCall(request: CodeGraphQueryRequest & { readonly query: McpServedQuery }): McpToolCall {
   const { query } = request
   switch (query.operation) {
     case 'repoMap':
@@ -83,6 +90,12 @@ export function mcpToolCall(request: CodeGraphQueryRequest): McpToolCall {
       }
     case 'stats':
       return { name: 'graph_stats', arguments: {} }
+    // Hub and community answers have been MCP tools since 1.0; the seam grew the operations when
+    // astria 1.0.6 added CLI parity, so both transports now answer them.
+    case 'hubs':
+      return { name: 'god_nodes', arguments: {} }
+    case 'communities':
+      return { name: 'list_communities', arguments: {} }
     /* v8 ignore next -- exhaustive over the closed CodeGraphQuery union; unreachable. */
     default:
       return assertNever(query, 'astria mcp tool mapping')

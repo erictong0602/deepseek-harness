@@ -8,15 +8,28 @@ Source: [`packages/codegraph/codegraph/src/types.ts`](../../packages/codegraph/c
 
 ## Operations
 
-The seam and model expose exactly six repository-level queries; the union is closed, so adding one is a compile-enforced change across the seam, providers, and the tool. `budgetTokens` is producer-owned (the tool derives it from its result cap); the model never passes it.
+The seam and model expose exactly ten repository-level operations; the union is closed, so adding one is a compile-enforced change across the seam, providers, and the tool. Nine answer with bounded text; `export` writes a viewable graph artifact at a caller-owned destination. `budgetTokens` is producer-owned (the tool derives it from its result cap); the model never passes it.
 
 ```ts type-equiv
 /**
- * The six repository-level queries the seam and model expose. A closed union: adding an operation is
- * a compile-enforced change across the seam, providers, and the tool. Symbol-level navigation is not
- * an operation here; `ctx.lsp` owns it.
+ * The ten repository-level operations the seam and model expose. A closed union: adding an
+ * operation is a compile-enforced change across the seam, providers, and the tool. Symbol-level
+ * navigation is not an operation here; `ctx.lsp` owns it. Nine operations answer with bounded text;
+ * `export` writes a viewable graph artifact instead of answering a question. `hubs`, `communities`,
+ * and `status` need astria ≥ 1.0.6 on a one-shot transport; `status` reports graph freshness, build
+ * time, astria version, and extraction-rules versions instead of graph content.
  */
-type CodeGraphOperation = 'repoMap' | 'query' | 'explain' | 'path' | 'affected' | 'stats'
+type CodeGraphOperation =
+  | 'repoMap'
+  | 'query'
+  | 'explain'
+  | 'path'
+  | 'affected'
+  | 'stats'
+  | 'export'
+  | 'hubs'
+  | 'communities'
+  | 'status'
 ```
 
 ## Request and result
@@ -29,7 +42,10 @@ Every request carries the workspace root whose graph to query; it is caller-supp
  * `source`/`target` are the operation's subject; `depth` limits traversal hops; `directed` follows
  * only caller-to-callee edges; `cursor` continues a truncated `query` from the provider-reported
  * continuation token; `budgetTokens` caps the provider's rendered output in approximate tokens
- * (the consumer's result-character cap derives it — the model never passes it).
+ * (the consumer's result-character cap derives it — the model never passes it). `export` carries
+ * its `format` and the destination `out` path — callers own placement, the provider never defaults
+ * a destination. `hubs`, `communities`, and `status` take no subject: they answer graph-level
+ * structure (hub nodes, communities, freshness, build time, and tool versions).
  */
 type CodeGraphQuery =
   | { readonly operation: 'repoMap'; readonly budgetTokens?: number }
@@ -45,6 +61,10 @@ type CodeGraphQuery =
   | { readonly operation: 'path'; readonly source: string; readonly target: string; readonly directed?: boolean }
   | { readonly operation: 'affected'; readonly node: string; readonly depth?: number }
   | { readonly operation: 'stats' }
+  | { readonly operation: 'export'; readonly format: CodeGraphExportFormat; readonly out: string }
+  | { readonly operation: 'hubs' }
+  | { readonly operation: 'communities' }
+  | { readonly operation: 'status' }
 ```
 
 ```ts type-equiv

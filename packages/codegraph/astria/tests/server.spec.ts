@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { CodeGraphQueryRequest } from '@deepseek-ai/dsh-codegraph'
 import { AstriaMcpServer, mcpToolCall } from '@deepseek-ai/dsh-astria'
-import type { AstriaServerSpec } from '@deepseek-ai/dsh-astria'
+import type { AstriaServerSpec, McpServedQuery } from '@deepseek-ai/dsh-astria'
 import { Writable } from 'node:stream'
 import { FakeMcpChild } from './helpers.ts'
 
@@ -16,7 +16,7 @@ const serverSpec: AstriaServerSpec = {
 
 describe('mcpToolCall', () => {
   it('maps every seam operation onto the server tool vocabulary', () => {
-    const request = (query: CodeGraphQueryRequest['query']): CodeGraphQueryRequest => ({ root: '/ws', query })
+    const request = (query: McpServedQuery): CodeGraphQueryRequest & { query: McpServedQuery } => ({ root: '/ws', query })
     expect(mcpToolCall(request({ operation: 'repoMap', budgetTokens: 400 })))
       .toEqual({ name: 'repo_map', arguments: { budget: 400 } })
     expect(mcpToolCall(request({ operation: 'query', question: 'auth', depth: 3, directed: true, budgetTokens: 90 })))
@@ -37,6 +37,10 @@ describe('mcpToolCall', () => {
       .toEqual({ name: 'affected', arguments: { node: 'X' } })
     expect(mcpToolCall(request({ operation: 'stats' })))
       .toEqual({ name: 'graph_stats', arguments: {} })
+    expect(mcpToolCall(request({ operation: 'hubs' })))
+      .toEqual({ name: 'god_nodes', arguments: {} })
+    expect(mcpToolCall(request({ operation: 'communities' })))
+      .toEqual({ name: 'list_communities', arguments: {} })
   })
 })
 

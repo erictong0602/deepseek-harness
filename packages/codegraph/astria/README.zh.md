@@ -9,7 +9,7 @@ kind: "package-reference"
 
 ## 概述
 
-当部署装有 [astria](https://github.com/Nodesify/astria)（一个把目录变成可查询知识图的工具）时，使用 `dsh-astria` 为 agent 提供仓库级图回答。它在加载时解析 astria 可执行文件（记录一次尽力而为的 `astria --version` 诊断），注册作用域唯一的 `ctx.codeGraph` 提供方，并通过 `ctx.subprocess` 每次完整运行一次 astria CLI 来回答六个操作 — 或以 `transport: server` 为每个工作区根目录骑乘一个池化的 `astria mcp` stdio 子进程。本包从不安装或升级 astria，也不运行任何包管理器：部署方自行安装 CLI，图的构建是工具操作（`build`/`update`）或自动进行（默认启用的 `autoUpdate`、缺失图回退）。
+当部署装有 [astria](https://github.com/Nodesify/astria)（一个把目录变成可查询知识图的工具）时，使用 `dsh-astria` 为 agent 提供仓库级图回答。它在加载时解析 astria 可执行文件（记录一次尽力而为的 `astria --version` 诊断），注册作用域唯一的 `ctx.codeGraph` 提供方，并通过 `ctx.subprocess` 每次完整运行一次 astria CLI 来回答十个操作 — 或以 `transport: server` 为每个工作区根目录骑乘一个池化的 `astria mcp` stdio 子进程。本包从不安装或升级 astria，也不运行任何包管理器：部署方自行安装 CLI，图的构建是工具操作（`build`/`update`）或自动进行（默认启用的 `autoUpdate`、缺失图回退）。
 
 ## 目录
 
@@ -63,7 +63,7 @@ kind: "package-reference"
 
 ### 一次查询做什么
 
-每个查询映射为一个 astria 子命令（`map`、`query`、`explain`、`path`、`affected`、`stats`），`--graph <root>` 固定工作区；细化字段变成 `--depth`、`--directed`、`--cursor` 与 `--budget` 标志。缺失的图以结构化 `CODEGRAPH_NO_GRAPH` 失败（匹配 astria 稳定的 "No graph found" stderr 行），工具会把它转化为一次自动后台构建。子进程运行一次并收集 stdout/stderr；退出码 0 返回报告文本及其截断事实，任何其他退出都作为结构化 `CODEGRAPH_EXIT` 错误失败，其消息携带有界的 stderr 尾部 — 因此缺失的图以 CLI 自身的指引呈现，而不是无声的空结果。取消与插件释放通过子进程接缝的托管范围终止子进程。
+每个查询映射为一个 astria 子命令（`map`、`query`、`explain`、`path`、`affected`、`stats`、`export`、`god-nodes`、`communities`、`status`），`--graph <root>` 固定工作区；`export` 额外携带 `--format <html|svg>` 与调用方持有的 `--out` 目的地，`status` 骑乘其 `--json` 信封（归一化后新鲜度事实与缺失图都结构化呈现），且 `hubs`/`communities`/`status` 需要 astria ≥ 1.0.6：细化字段变成 `--depth`、`--directed`、`--cursor` 与 `--budget` 标志。缺失的图以结构化 `CODEGRAPH_NO_GRAPH` 失败（匹配 astria 稳定的 "No graph found" stderr 行），工具会把它转化为一次自动后台构建。子进程运行一次并收集 stdout/stderr；退出码 0 返回报告文本及其截断事实，任何其他退出都作为结构化 `CODEGRAPH_EXIT` 错误失败，其消息携带有界的 stderr 尾部 — 因此缺失的图以 CLI 自身的指引呈现，而不是无声的空结果。取消与插件释放通过子进程接缝的托管范围终止子进程。
 
 ### 附加提示
 

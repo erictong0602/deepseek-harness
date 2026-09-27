@@ -3,14 +3,14 @@
 # After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write packages/codegraph/tool-codegraph/README.md
 /:
-  en: f004f07cdfec8f5e
-  zh: 6a007cd4389de984
+  en: 9eb9035ebe240e8c
+  zh: 3b1a865597eadd8e
 /deepseek-ai-dsh-tool-codegraph:
   en: 60e49fd39ef2b71e
   zh: 23d3aa3da5fbcb7d
 /deepseek-ai-dsh-tool-codegraph/summary:
-  en: 7499fde82108db80
-  zh: 7511d4dd54f6e00a
+  en: 9adee420c8b6b1fa
+  zh: a6d12d23e7f63f7d
 /deepseek-ai-dsh-tool-codegraph/table-of-contents:
   en: d152484eb41ac6b4
   zh: 1ab85e5eda9bfb53
@@ -26,9 +26,12 @@
 /deepseek-ai-dsh-tool-codegraph/use-this-package/configuration:
   en: e57864fc619cd726
   zh: 133aba484d716590
+/deepseek-ai-dsh-tool-codegraph/use-this-package/the-export-operation:
+  en: 98e3ede1ef95df66
+  zh: 6ff6acb7adee9407
 /deepseek-ai-dsh-tool-codegraph/use-this-package/failures-and-recovery:
-  en: 906751efe6291106
-  zh: e8211ec6ed5c4b80
+  en: 5958d3a91f14a328
+  zh: 848933d514e33d9b
 /deepseek-ai-dsh-tool-codegraph/understand-the-implementation:
   en: 42b15ac6321706aa
   zh: cfcb757213648bd9

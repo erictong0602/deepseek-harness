@@ -1725,7 +1725,7 @@ The lsp tool keeps provider selection and language-server subprocesses behind ct
 
 ### `code_graph`
 
-Query the repository code graph. operation is one of repoMap, query, explain, path, affected, stats, build, update. question is search terms for query; node is a symbol label or id for explain and affected; source and target are node labels for path. depth limits traversal hops; directed follows only caller-to-callee edges; cursor continues a truncated query from its shown token. build and update rebuild the workspace graph as a background job and return the job id.
+Query the repository code graph. operation is one of repoMap, query, explain, path, affected, stats, export, hubs, communities, status, build, update. question is search terms for query; node is a symbol label or id for explain and affected; source and target are node labels for path. depth limits traversal hops; directed follows only caller-to-callee edges; cursor continues a truncated query from its shown token. export writes a viewable graph artifact (format html or svg) and reports its path for the user to open; hubs lists the highest-degree hub nodes; communities lists detected communities; status reports graph freshness, build time, and tool versions. build and update rebuild the workspace graph as a background job and return the job id.
 
 ```json
 {
@@ -1733,7 +1733,7 @@ Query the repository code graph. operation is one of repoMap, query, explain, pa
   "properties": {
     "operation": {
       "type": "string",
-      "description": "repoMap, query, explain, path, affected, stats, build, or update.",
+      "description": "repoMap, query, explain, path, affected, stats, export, hubs, communities, status, build, or update.",
       "enum": [
         "repoMap",
         "query",
@@ -1741,6 +1741,10 @@ Query the repository code graph. operation is one of repoMap, query, explain, pa
         "path",
         "affected",
         "stats",
+        "export",
+        "hubs",
+        "communities",
+        "status",
         "build",
         "update"
       ]
@@ -1772,6 +1776,14 @@ Query the repository code graph. operation is one of repoMap, query, explain, pa
     "cursor": {
       "type": "number",
       "description": "query only: continuation token shown by a previous truncated result; fetches the next slice."
+    },
+    "format": {
+      "type": "string",
+      "description": "export only: html interactive page (default) or svg static image.",
+      "enum": [
+        "html",
+        "svg"
+      ]
     }
   },
   "required": [

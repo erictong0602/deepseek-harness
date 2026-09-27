@@ -52,10 +52,16 @@ export class AstriaServerProvider implements CodeGraphProvider {
 
   async query(request: CodeGraphQueryRequest, signal?: AbortSignal): Promise<CodeGraphResult> {
     this.assertActive(signal)
+    // Export has no MCP tool and status is a build-pipeline fact the pooled server cannot answer:
+    // both run through one complete CLI child, which also applies the status JSON normalization.
+    if (request.query.operation === 'export' || request.query.operation === 'status') {
+      return this.cli.query(request, signal)
+    }
     const fused = signal === undefined
       ? this.lifetime.signal
       : AbortSignal.any([signal, this.lifetime.signal])
-    const tool = mcpToolCall(request)
+    const { root, query } = request
+    const tool = mcpToolCall({ root, query })
     let server = await this.serverFor(request.root)
     for (let attempt = 0; ; attempt++) {
       try {

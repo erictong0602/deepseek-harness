@@ -1,5 +1,5 @@
 ---
-description: "The code-graph Service Definition (ctx.codeGraph): a sole-provider registry over six normalized repository-level operations with bounded text results and the CodeGraphError taxonomy, for users and maintainers composing code-graph navigation."
+description: "The code-graph Service Definition (ctx.codeGraph): a sole-provider registry over ten normalized repository-level operations with bounded text results and the CodeGraphError taxonomy, for users and maintainers composing code-graph navigation."
 kind: "package-reference"
 ---
 
@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-`dsh-codegraph` defines the code-graph capability seam: one scope holds at most one provider, queries are six normalized read-only operations (`repoMap`, `query`, `explain`, `path`, `affected`, `stats`), and every result is bounded text with an explicit truncation fact. Use it when composing a code-graph backend or a consumer; use [`dsh-astria`](../astria/README.md) for the reference provider and [`dsh-tool-codegraph`](../tool-codegraph/README.md) for the model-facing tool. Symbol-level navigation belongs to `ctx.lsp`, not this seam.
+`dsh-codegraph` defines the code-graph capability seam: one scope holds at most one provider, queries are ten normalized read-only operations (`repoMap`, `query`, `explain`, `path`, `affected`, `stats`, `export`, `hubs`, `communities`, `status`), and every result is bounded text with an explicit truncation fact — `export` additionally writes a viewable graph artifact at a caller-owned destination. Use it when composing a code-graph backend or a consumer; use [`dsh-astria`](../astria/README.md) for the reference provider and [`dsh-tool-codegraph`](../tool-codegraph/README.md) for the model-facing tool. Symbol-level navigation belongs to `ctx.lsp`, not this seam.
 
 ## Table of Contents
 
@@ -40,7 +40,7 @@ export function apply(ctx: Context): void {
   ctx.codeGraph.registerProvider({
     id: CodeGraphProviderId('my-backend'),
     async query(request: CodeGraphQueryRequest): Promise<CodeGraphResult> {
-      // answer request.query (one of the six operations) for request.root
+      // answer request.query (one of the ten operations) for request.root
       return { kind: 'text', text: 'report', truncated: false }
     },
     async refresh(request: CodeGraphRefreshRequest): Promise<CodeGraphResult> {
@@ -62,7 +62,7 @@ Every request carries the workspace `root` whose graph to query; providers resol
 <summary>Implementation internals — click to expand</summary>
 
 - **Sole-provider slot.** One provider per scope: a second registration throws `CODEGRAPH_CONFLICT` before mutating anything, and the slot's disposer clears it with the registering fiber. This mirrors the single-provider seams (session titles) rather than `ctx.lsp`'s extension-keyed table, because a workspace has one graph, not one per file type.
-- **Closed operation union.** `CodeGraphQuery` discriminates six operations, and `CODEGRAPH_OPERATIONS` is their runtime tuple kept in the same package so schema enums and validators derive from one list; adding an operation is a compile-enforced change across the seam, providers, and the tool. The request is a `{ root, query }` wrapper so the root is never defaulted.
+- **Closed operation union.** `CodeGraphQuery` discriminates ten operations, and `CODEGRAPH_OPERATIONS` is their runtime tuple kept in the same package so schema enums and validators derive from one list; adding an operation is a compile-enforced change across the seam, providers, and the tool. Nine operations answer with bounded text; `export` carries its `format` plus the destination `out` path, so placement stays caller-owned. The request is a `{ root, query }` wrapper so the root is never defaulted.
 - **One-arm result union.** `CodeGraphResult` is `{ kind: 'text', text, truncated }`; `truncated` reports the provider's own output bound, distinct from any consumer-side rendering cap. A second arm (for example structured locations) would switch consumers by `kind`.
 - **Refresh is caller-scheduled.** `refresh` runs the provider's build pipeline and never decides its own placement: the model-facing tool takes it off the turn through `ctx.jobs`, and post-edit listeners schedule their own.
 

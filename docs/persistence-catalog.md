@@ -6129,7 +6129,7 @@ Sources: [`packages/core/session/src/types.ts:204`](../packages/core/session/src
 
 SHA-256: `770b37b3bc0bd78074e7c5271c427e291338efd9f6ade2a55adbe35f83c84461`
 
-Sources: [`packages/codegraph/astria/src/index.ts:54`](../packages/codegraph/astria/src/index.ts)
+Sources: [`packages/codegraph/astria/src/index.ts:56`](../packages/codegraph/astria/src/index.ts)
 
 | Property | Presence | Type |
 |---|---|---|

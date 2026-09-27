@@ -15,6 +15,7 @@ import type {
 } from '@deepseek-ai/dsh-codegraph'
 import type { SubprocessHandle, SubprocessSpawnSpec } from '@deepseek-ai/dsh-subprocess'
 import { buildAstriaArgs, buildAstriaRefreshArgs } from './args.ts'
+import { parseAstriaStatus, renderAstriaStatus } from './status.ts'
 
 /** Spawns one managed child from a fully-specified request (injected for testability). */
 export type AstriaSpawner = (spec: SubprocessSpawnSpec) => SubprocessHandle
@@ -72,11 +73,30 @@ export class AstriaCliProvider implements CodeGraphProvider {
     // Honor an already-aborted signal before spawning so a canceled request never starts a child.
     this.assertActive(signal)
     const fused = this.querySignal(signal)
-    return this.track(this.settle(
+    const run = this.settle(
       this.spawn(this.spawnSpec(buildAstriaArgs(request), request.root, fused)),
       request.query.operation,
       fused,
-    ))
+    )
+    // `status` answers with astria's JSON envelope; normalize it so consumers get stable freshness
+    // facts and a missing graph surfaces as the structured no-graph error.
+    if (request.query.operation !== 'status') return this.track(run)
+    return this.track(run.then(result => this.normalizeStatus(result)))
+  }
+
+  /**
+   * Normalize one settled `status` run: a parsed envelope becomes the stable rendered report (the
+   * truncation fact survives), a `missing` graph becomes `CODEGRAPH_NO_GRAPH` so consumers react by
+   * building, and anything unparsed (a future CLI's changed output, a truncated envelope) passes
+   * through as the raw text.
+   */
+  private normalizeStatus(result: CodeGraphResult): CodeGraphResult {
+    const facts = parseAstriaStatus(result.text)
+    if (facts === undefined) return result
+    if (facts.status === 'missing') {
+      throw new CodeGraphError('astria status reports no graph found for the workspace', 'CODEGRAPH_NO_GRAPH')
+    }
+    return { ...result, text: renderAstriaStatus(facts) }
   }
 
   async refresh(request: CodeGraphRefreshRequest, signal?: AbortSignal): Promise<CodeGraphResult> {
