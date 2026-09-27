@@ -349,10 +349,10 @@ export interface Config {
 ## `@deepseek-ai/dsh-astria`
 
 - `inject`: `subprocess` · `codeGraph`
-- `source`: [`packages/codegraph/astria/src/index.ts:33`](../packages/codegraph/astria/src/index.ts)
+- `source`: [`packages/codegraph/astria/src/index.ts:69`](../packages/codegraph/astria/src/index.ts)
 
 ```ts config-catalog
-/** Plugin configuration: the astria executable and its host bounds. */
+/** Plugin configuration: the astria executable, its host bounds, and post-edit refresh. */
 export interface Config {
   /** Executable to run (absolute, or a bare name resolved on the scrubbed PATH at load). Default `astria`. */
   command?: string
@@ -366,6 +366,18 @@ export interface Config {
   maxStderrBytes?: number
   /** Termination grace for cancelled or disposed queries (ms). Default 2000. */
   killGraceMs?: number
+  /** Debounced incremental refresh after file-mutating tools. Default disabled. */
+  autoUpdate?: AutoUpdateConfig
+}
+
+/** Debounced post-edit graph refresh; enabled deployments only. */
+export interface AutoUpdateConfig {
+  /** Listen for file-mutating tool results and refresh the graph. Default false. */
+  enabled?: boolean
+  /** Quiet window after the last edit before the refresh job starts (ms). Default 3000. */
+  debounceMs?: number
+  /** Tool names that count as edits. Default write, edit, str_replace_editor. */
+  tools?: string[]
 }
 ```
 <!-- END GENERATED config-catalog:@deepseek-ai/dsh-astria -->
@@ -3510,15 +3522,17 @@ export interface Config {
 ## `@deepseek-ai/dsh-tool-codegraph`
 
 - `inject`: `tools` · `codeGraph` · `systemPrompt`
-- `source`: [`packages/codegraph/tool-codegraph/src/index.ts:53`](../packages/codegraph/tool-codegraph/src/index.ts)
+- `source`: [`packages/codegraph/tool-codegraph/src/index.ts:62`](../packages/codegraph/tool-codegraph/src/index.ts)
 
 ```ts config-catalog
-/** Plugin configuration: the result cap and the timeout budget. */
+/** Plugin configuration: the result cap, the timeout budget, and refresh gating. */
 export interface Config {
   /** Largest complete rendered result in characters, including truncation metadata (default 16000). */
   maxResultChars?: number
   /** Tool-call timeout budget in ms (default 60000). */
   timeoutMs?: number
+  /** Expose the build and update operations (default true); disabled calls fail loudly. */
+  allowRefresh?: boolean
 }
 ```
 <!-- END GENERATED config-catalog:@deepseek-ai/dsh-tool-codegraph -->

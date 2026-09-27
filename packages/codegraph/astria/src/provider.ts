@@ -10,10 +10,11 @@ import { CodeGraphError, CodeGraphProviderId } from '@deepseek-ai/dsh-codegraph'
 import type {
   CodeGraphProvider,
   CodeGraphQueryRequest,
+  CodeGraphRefreshRequest,
   CodeGraphResult,
 } from '@deepseek-ai/dsh-codegraph'
 import type { SubprocessHandle, SubprocessSpawnSpec } from '@deepseek-ai/dsh-subprocess'
-import { buildAstriaArgs } from './args.ts'
+import { buildAstriaArgs, buildAstriaRefreshArgs } from './args.ts'
 
 /** Spawns one managed child from a fully-specified request (injected for testability). */
 export type AstriaSpawner = (spec: SubprocessSpawnSpec) => SubprocessHandle
@@ -71,9 +72,28 @@ export class AstriaCliProvider implements CodeGraphProvider {
     // Honor an already-aborted signal before spawning so a canceled request never starts a child.
     this.assertActive(signal)
     const fused = this.querySignal(signal)
-    const handle = this.spawn({
-      argv: [this.spec.executable, ...this.spec.args, ...buildAstriaArgs(request)],
-      cwd: request.root,
+    return this.track(this.settle(
+      this.spawn(this.spawnSpec(buildAstriaArgs(request), request.root, fused)),
+      request.query.operation,
+      fused,
+    ))
+  }
+
+  async refresh(request: CodeGraphRefreshRequest, signal?: AbortSignal): Promise<CodeGraphResult> {
+    this.assertActive(signal)
+    const fused = this.querySignal(signal)
+    return this.track(this.settle(
+      this.spawn(this.spawnSpec(buildAstriaRefreshArgs(request), request.root, fused)),
+      `graph ${request.mode}`,
+      fused,
+    ))
+  }
+
+  /** One fully-specified spawn request for an astria child with bounded collection. */
+  private spawnSpec(argv: readonly string[], root: string, fused: AbortSignal): SubprocessSpawnSpec {
+    return {
+      argv: [this.spec.executable, ...this.spec.args, ...argv],
+      cwd: root,
       stdio: {
         stdin: 'ignore',
         stdout: { maxBytes: this.spec.maxOutputBytes },
@@ -82,25 +102,31 @@ export class AstriaCliProvider implements CodeGraphProvider {
       graceMs: this.spec.killGraceMs,
       signal: fused,
       env: this.spec.env,
-    })
-    const run = (async () => {
-      const outcome = await handle.done
-      // A termination our fused signal requested resolves `done` with signal exit facts; surface the
-      // caller's or disposal's abort reason instead of misreading it as an astria failure.
-      fused.throwIfAborted()
-      if (outcome.exitCode !== 0) {
-        const stderr = handle.collected.stderr?.readFrom(0).text ?? ''
-        const detail = stderr === '' ? '' : `: ${stderr}`
-        const exit = outcome.exitCode === null ? `signal ${outcome.signal}` : `exit code ${outcome.exitCode}`
-        throw new CodeGraphError(`astria ${request.query.operation} failed with ${exit}${detail}`, 'CODEGRAPH_EXIT')
-      }
-      const stdout = handle.collected.stdout?.readFrom(0)
-      return {
-        kind: 'text' as const,
-        text: stdout?.text ?? '',
-        truncated: stdout?.lossy === true,
-      }
-    })()
+    }
+  }
+
+  /** Classify one settled child into the result union or a structured failure. */
+  private async settle(handle: SubprocessHandle, label: string, fused: AbortSignal): Promise<CodeGraphResult> {
+    const outcome = await handle.done
+    // A termination our fused signal requested resolves `done` with signal exit facts; surface the
+    // caller's or disposal's abort reason instead of misreading it as an astria failure.
+    fused.throwIfAborted()
+    if (outcome.exitCode !== 0) {
+      const stderr = handle.collected.stderr?.readFrom(0).text ?? ''
+      const detail = stderr === '' ? '' : `: ${stderr}`
+      const exit = outcome.exitCode === null ? `signal ${outcome.signal}` : `exit code ${outcome.exitCode}`
+      throw new CodeGraphError(`astria ${label} failed with ${exit}${detail}`, 'CODEGRAPH_EXIT')
+    }
+    const stdout = handle.collected.stdout?.readFrom(0)
+    return {
+      kind: 'text' as const,
+      text: stdout?.text ?? '',
+      truncated: stdout?.lossy === true,
+    }
+  }
+
+  /** Keep the provider's disposal quiescent on every in-flight child. */
+  private track<T>(run: Promise<T>): Promise<T> {
     this.inFlight.add(run)
     void run.catch(() => undefined).then(() => this.inFlight.delete(run))
     return run

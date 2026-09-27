@@ -621,6 +621,12 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         parameters: [{ name: 'request', description: 'the normalized query plus workspace root.' }, { name: 'signal', description: 'optional cancellation forwarded to the provider.' }],
         returns: 'the normalized, closed-union result.',
       },
+      {
+        signature: 'refresh(request: CodeGraphRefreshRequest, signal?: AbortSignal): Promise<CodeGraphResult>',
+        description: 'Rebuild or incrementally update the workspace graph through the registered provider. No provider throws `CodeGraphError` `CODEGRAPH_UNAVAILABLE`. Long-running: callers own deadlines and background-job placement.',
+        parameters: [{ name: 'request', description: 'the refresh request (root plus mode).' }, { name: 'signal', description: 'optional cancellation forwarded to the provider.' }],
+        returns: 'the build run\'s bounded text report.',
+      },
     ],
   },
   {
@@ -4666,7 +4672,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'CodeGraphProvider',
-    declaration: 'export interface CodeGraphProvider {\n    readonly id: CodeGraphProviderId;\n    query(request: CodeGraphQueryRequest, signal?: AbortSignal): Promise<CodeGraphResult>;\n}',
+    declaration: 'export interface CodeGraphProvider {\n    readonly id: CodeGraphProviderId;\n    query(request: CodeGraphQueryRequest, signal?: AbortSignal): Promise<CodeGraphResult>;\n    refresh(request: CodeGraphRefreshRequest, signal?: AbortSignal): Promise<CodeGraphResult>;\n}',
   },
   {
     name: 'CodeGraphProviderId',
@@ -4679,6 +4685,14 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'CodeGraphQueryRequest',
     declaration: 'export interface CodeGraphQueryRequest {\n    readonly root: string;\n    readonly query: CodeGraphQuery;\n}',
+  },
+  {
+    name: 'CodeGraphRefreshMode',
+    declaration: 'export type CodeGraphRefreshMode = \'build\' | \'update\';',
+  },
+  {
+    name: 'CodeGraphRefreshRequest',
+    declaration: 'export interface CodeGraphRefreshRequest {\n    readonly root: string;\n    readonly mode: CodeGraphRefreshMode;\n}',
   },
   {
     name: 'CodeGraphResult',

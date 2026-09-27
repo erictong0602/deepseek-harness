@@ -28,6 +28,7 @@
   "license": "MIT",
   "peerDependencies": {
     "@deepseek-ai/dsh-codegraph": "workspace:*",
+    "@deepseek-ai/dsh-jobs": "workspace:*",
     "@deepseek-ai/dsh-system-prompt": "workspace:*",
     "@deepseek-ai/dsh-timeout": "workspace:*",
     "@deepseek-ai/dsh-tools": "workspace:*",
@@ -38,6 +39,8 @@
   },
   "devDependencies": {
     "@deepseek-ai/dsh-codegraph": "workspace:*",
+    "@deepseek-ai/dsh-jobs": "workspace:*",
+    "@deepseek-ai/dsh-jobs-local": "workspace:*",
     "@deepseek-ai/dsh-system-prompt": "workspace:*",
     "@deepseek-ai/dsh-timeout": "workspace:*",
     "@deepseek-ai/dsh-tools": "workspace:*",

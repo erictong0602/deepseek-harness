@@ -511,6 +511,7 @@ export const LINK_MAP: Readonly<Record<string, string>> = {
   CodeGraphProvider: 'codegraph.md',
   CodeGraphQueryRequest: 'codegraph.md',
   CodeGraphResult: 'codegraph.md',
+  CodeGraphRefreshRequest: 'codegraph.md',
   LspQueryRequest: 'lsp.md',
   LspQueryResult: 'lsp.md',
   LlmAdapter: 'llm-streaming.md',

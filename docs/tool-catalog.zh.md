@@ -1735,7 +1735,7 @@ lsp 工具将提供方选择和语言服务器子进程置于 ctx.lsp 之后，�
 
 ### `code_graph`
 
-查询仓库代码图。operation 可取 repoMap、query、explain、path、affected 或 stats。question 是 query 的搜索词；node 是 explain 与 affected 的符号标签或 id；source 和 target 是 path 的节点标签。depth 限制遍历跳数；directed 只沿调用方到被调用方的边。
+查询仓库代码图，或重建图。operation 可取 repoMap、query、explain、path、affected、stats、build 或 update。question 是 query 的搜索词；node 是 explain 与 affected 的符号标签或 id；source 和 target 是 path 的节点标签。depth 限制遍历跳数；directed 只沿调用方到被调用方的边。build 与 update 把工作区图的重建作为后台任务启动并返回任务 id。
 
 ```json
 {
@@ -1743,14 +1743,16 @@ lsp 工具将提供方选择和语言服务器子进程置于 ctx.lsp 之后，�
   "properties": {
     "operation": {
       "type": "string",
-      "description": "repoMap, query, explain, path, affected, or stats.",
+      "description": "repoMap, query, explain, path, affected, stats, build, or update.",
       "enum": [
         "repoMap",
         "query",
         "explain",
         "path",
         "affected",
-        "stats"
+        "stats",
+        "build",
+        "update"
       ]
     },
     "question": {
@@ -1786,7 +1788,7 @@ lsp 工具将提供方选择和语言服务器子进程置于 ctx.lsp 之后，�
 
 来源：[`packages/codegraph/tool-codegraph/src/index.ts`](../packages/codegraph/tool-codegraph/src/index.ts)
 
-code_graph 工具将提供方选择和图后端置于 ctx.codeGraph 之后，因此其模型可见 schema 在更换提供方时保持稳定。运行时要求已注册提供方，例如 `@deepseek-ai/dsh-astria`；如果没有提供方，查询会返回结构化 `CODEGRAPH_UNAVAILABLE` 错误，而不会改变 schema。
+The code_graph tool keeps provider selection and the graph backend behind ctx.codeGraph, so its model-visible schema stays stable across providers. Requires a registered provider (e.g. `@deepseek-ai/dsh-astria`) at runtime; without one, a query returns the structured `CODEGRAPH_UNAVAILABLE` error rather than changing the schema.
 
 <a id="deepseek-aidsh-tool-ralph"></a>
 

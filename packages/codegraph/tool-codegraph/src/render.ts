@@ -7,19 +7,30 @@
 
 import type { GenericCallView } from '@deepseek-ai/dsh-tools'
 import { CODEGRAPH_OPERATIONS } from '@deepseek-ai/dsh-codegraph'
-import type { CodeGraphOperation, CodeGraphQuery } from '@deepseek-ai/dsh-codegraph'
+import type { CodeGraphOperation, CodeGraphQuery, CodeGraphRefreshMode } from '@deepseek-ai/dsh-codegraph'
 
 export { CODEGRAPH_OPERATIONS }
+
+/** The six query operations plus the two refresh operations, as the tool's schema enum. */
+export const CODEGRAPH_TOOL_OPERATIONS: readonly (CodeGraphOperation | CodeGraphRefreshMode)[] = [...CODEGRAPH_OPERATIONS, 'build', 'update']
 
 /** Default cap on the complete rendered tool result, including truncation metadata. */
 export const DEFAULT_MAX_RESULT_CHARS = 16_000
 
 /**
  * Validated `code_graph` arguments: the seam's query union with the producer-owned `budgetTokens`
- * arm field distributively removed, so each operation carries exactly its required subject plus
- * optional refinements and the two unions cannot drift apart.
+ * arm field distributively removed plus the two refresh operations, so each operation carries
+ * exactly its required subject plus optional refinements and the unions cannot drift apart.
  */
-export type CodeGraphToolInput = ToolQueryOf<CodeGraphQuery>
+export type CodeGraphQueryInput = ToolQueryOf<CodeGraphQuery>
+
+/**
+ * Validated `code_graph` arguments: one query arm or one refresh arm, discriminated by `operation`
+ * so each operation carries exactly its required subject plus optional refinements.
+ */
+export type CodeGraphToolInput = CodeGraphQueryInput
+  | { readonly operation: 'build' }
+  | { readonly operation: 'update' }
 
 /** Distributive `Omit`: apply the key removal to every arm of the query union. */
 type ToolQueryOf<Q> = Q extends unknown ? Omit<Q, 'budgetTokens'> : never
@@ -45,11 +56,13 @@ export interface CodeGraphToolArgs {
  */
 export function parseCodeGraphArgs(args: CodeGraphToolArgs): CodeGraphToolInput {
   if (!isOperation(args.operation)) {
-    throw new Error(`operation must be one of ${CODEGRAPH_OPERATIONS.join(', ')}`)
+    throw new Error(`operation must be one of ${CODEGRAPH_TOOL_OPERATIONS.join(', ')}`)
   }
   switch (args.operation) {
     case 'repoMap':
     case 'stats':
+    case 'build':
+    case 'update':
       return { operation: args.operation }
     case 'query':
       return {
@@ -76,9 +89,9 @@ export function parseCodeGraphArgs(args: CodeGraphToolArgs): CodeGraphToolInput 
   }
 }
 
-/** Whether a string is one of the six operations. */
-function isOperation(value: string): value is CodeGraphOperation {
-  return (CODEGRAPH_OPERATIONS as readonly string[]).includes(value)
+/** Whether a string is one of the eight operations. */
+function isOperation(value: string): value is CodeGraphOperation | CodeGraphRefreshMode {
+  return (CODEGRAPH_TOOL_OPERATIONS as readonly string[]).includes(value)
 }
 
 /** Require a non-blank string subject field. */

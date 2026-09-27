@@ -9,7 +9,7 @@ kind: "package-reference"
 
 ## 概述
 
-`dsh-tool-codegraph` 让模型通过一个只读的 `code_graph` 工具提出仓库级问题：概览仓库图、自然语言查询、符号解释、两个区域之间的最短路径、一处变更的影响范围，或图统计信息。参数按操作校验（`query` 需要 `question`，`path` 需要 `source` 与 `target`），结果以完整渲染字符数封顶，提供方的令牌预算由该上限推导。本包需要已注册的 `ctx.codeGraph` 提供方和会话工作区根目录。仓库级结构问题选用本工具；普通导航应继续使用 `search`/`read`，精确符号位置使用 `lsp`。
+`dsh-tool-codegraph` 让模型通过一个工具提出仓库级问题并重建图：六个查询操作（概览仓库图、自然语言查询、符号解释、最短路径、影响范围、图统计）与两个刷新操作（`build`、`update`）。当任务注册表与所属 agent 存在时，刷新经 `ctx.jobs` 作为后台任务运行并立即返回任务 id，否则前台运行。参数按操作校验，结果以完整渲染字符数封顶，提供方的令牌预算由该上限推导。本包需要已注册的 `ctx.codeGraph` 提供方和会话工作区根目录；本工具用于仓库级结构，而非普通导航。
 
 ## 目录
 
@@ -29,18 +29,19 @@ kind: "package-reference"
 
 ### 该工具
 
-`code_graph` 接受 `operation`（`repoMap`、`query`、`explain`、`path`、`affected` 或 `stats`）以及操作的主题：`query` 用 `question`；`explain` 与 `affected` 用 `node`；`path` 用 `source` 与 `target`。`depth`（正整数）与 `directed` 细化遍历。提供方选择、令牌预算、可执行文件与超时都留在模型输入之外。
+`code_graph` 接受 `operation`（`repoMap`、`query`、`explain`、`path`、`affected`、`stats`、`build` 或 `update`）以及操作的主题：`query` 用 `question`；`explain` 与 `affected` 用 `node`；`path` 用 `source` 与 `target`。`depth`（正整数）与 `directed` 细化遍历；`build` 与 `update` 不需要主题。提供方选择、令牌预算、后台放置、可执行文件与超时都留在模型输入之外。
 
 ### 模型得到什么
 
-每个操作返回提供方的完整报告文本与 `truncated` 事实。渲染结果以完整字符数封顶，截断标记计入上限；提供方侧的截断有专属标记。空报告渲染为独立的 `No output.` 行，提供方失败以模型可读并可据以调整的错误文本到达 — 缺失的图会说明如何构建。
+每个查询返回提供方的完整报告文本与 `truncated` 事实。渲染结果以完整字符数封顶，截断标记计入上限；提供方侧的截断有专属标记。空报告渲染为独立的 `No output.` 行，提供方失败以模型可读并可据以调整的错误文本到达 — 缺失的图会说明如何构建。后台刷新立即返回 `started background job <id>`；任务工具读取其输出与完成状态。
 
 ### 配置
 
 | 键 | 默认值 | 含义 |
 |---|---|---|
 | `maxResultChars` | `16000` | 最大的完整渲染结果，含截断元数据；同时推导提供方的令牌预算 |
-| `timeoutMs` | `60000` | 由 `dsh-tool-call-timeout-policy` 强制的工具调用超时预算；覆盖一次完整的提供方子进程运行，且不可由模型配置 |
+| `timeoutMs` | `60000` | 由 `dsh-tool-call-timeout-policy` 强制的工具调用超时预算；覆盖一次完整的前台提供方子进程运行，且不可由模型配置 |
+| `allowRefresh` | `true` | 暴露 `build` 与 `update` 操作；被禁用的调用会响亮地失败而不是无声跳过 |
 
 生成的[配置目录](../../../docs/config-catalog.zh.md#deepseek-aidsh-tool-codegraph)是每个可接受字段的详尽来源。
 
@@ -156,8 +157,8 @@ Use search/read for ordinary navigation and lsp for precise symbol positions. Us
 
 这些限制定义本工具何时是糟糕的选择。它们是当前的包约束，不是任务积压。
 
-- **没有新鲜度保证** — 工具回答工作区当前持有的图；过期的图返回过期的结构，刷新（`astria update .`）留在部署方。
-- **没有图构建操作** — 构建或监视图不是模型可见的；作为后台任务（`ctx.jobs`）的构建操作是延后工作，需随生产者配置门控一同引入。
+- **没有新鲜度保证** — 工具回答工作区当前持有的图；在模型或监听器刷新之前，过期的图返回过期的结构。
+- **前台回退受超时约束** — 没有任务注册表或所属 agent 时，`build`/`update` 在回合内受 `timeoutMs` 约束运行，大型工作区可能超出该预算；应提高预算或组合 `dsh-jobs`。
 
 <a id="dev-note"></a>
 ### 开发备注

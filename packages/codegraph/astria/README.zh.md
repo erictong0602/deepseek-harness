@@ -46,12 +46,19 @@ kind: "package-reference"
 | `maxOutputBytes` | `1000000` | 每次查询收集 stdout 的内存上限；溢出保留尾部并将结果标记为截断 |
 | `maxStderrBytes` | `100000` | 退出失败中包含的 stderr 尾部上限 |
 | `killGraceMs` | `2000` | 取消或释放查询的终止宽限 |
+| `autoUpdate.enabled` | `false` | 文件修改类工具成功后，启动一个由编辑 agent 拥有的防抖后台 `astria update` 任务，并在刷新完成的图落地时注入通知；需要组合任务注册表与工具运行时 |
+| `autoUpdate.debounceMs` | `3000` | 最后一次编辑之后、刷新任务启动之前的静默窗口 |
+| `autoUpdate.tools` | `write`、`edit`、`str_replace_editor` | 视为编辑的工具名称 |
 
 生成的[配置目录](../../../docs/config-catalog.zh.md#deepseek-aidsh-astria)是每个可接受字段的详尽来源。
 
 ### 一次查询做什么
 
 每个查询映射为一个 astria 子命令（`map`、`query`、`explain`、`path`、`affected`、`stats`），`--graph <root>` 固定工作区；细化字段变成 `--depth`、`--directed` 与 `--budget` 标志。子进程运行一次并收集 stdout/stderr；退出码 0 返回报告文本及其截断事实，任何其他退出都作为结构化 `CODEGRAPH_EXIT` 错误失败，其消息携带有界的 stderr 尾部 — 因此缺失的图以 CLI 自身的指引呈现，而不是无声的空结果。取消与插件释放通过子进程接缝的托管范围终止子进程。
+
+### 刷新与自动更新
+
+`refresh` 以同样的一次性纪律运行 `astria run`（完整流水线）或 `astria update`（增量 AST-only 重建）；放置由调用方决定 — `code_graph` 工具通过 `ctx.jobs` 以本包的 `codegraph` 任务种类把构建调度为后台任务。启用 `autoUpdate.enabled` 后，`tools/post-execute` 监听器观察配置的文件修改类工具，在编辑落定后为每个工作区启动一个防抖的、由 agent 拥有的后台更新，并注入下一次请求可见的 `astria` 来源通知。该监听器只在组合了任务注册表与工具运行时时激活。
 
 -----
 
@@ -104,9 +111,10 @@ kind: "package-reference"
 
 这些限制定义本提供方何时是糟糕的选择或需要特别的运维关注。它们是当前的包约束，不是任务积压。
 
-- **每次查询一次进程派生** — 每次查询都付出 CLI 启动（包括打开 SQLite）；延迟敏感的部署应等待下方的常驻服务端变体。
+- **每次查询一次进程派生** — 每次查询（以及每次刷新）都付出 CLI 启动（包括打开 SQLite）；延迟敏感的部署应等待下方的常驻服务端变体。
 - **面向人类的 CLI 输出** — astria v1 没有机器可读的输出标志，因此结果是 CLI 按令牌预算生成的文本原样；上游提供 `--json` 表面后，接缝才能生长出结构化结果分支。
 - **没有约束策略** — 本包信任配置的可执行文件，不添加沙箱；受限部署必须提供合适的子进程提供方或同世界沙箱包装。
+- **自动更新只观察工具介导的编辑** — 监听器只对配置的工具名称（默认 `write`、`edit`、`str_replace_editor`）作出反应；shell 驱动的文件变更只有通过模型下一次显式刷新才会进入图。
 - **延后：常驻服务端提供方** — 以 `lsp-stdio` 的形态把 `astria mcp` 作为池化 stdio 进程运行可消除每次查询的派生开销；接缝无需为此变更。
 
 <a id="dev-note"></a>

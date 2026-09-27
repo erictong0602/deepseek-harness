@@ -59,6 +59,23 @@ type CodeGraphResult = {
 }
 ```
 
+## Refresh
+
+Refresh rebuilds the workspace graph outside the query path: `build` runs the provider's full pipeline, `update` the incremental AST-only pass. Refresh is caller-scheduled — the model-facing tool takes it off the turn through `ctx.jobs`, and post-edit listeners schedule their own — and returns the same bounded text result union.
+
+```ts type-equiv
+/**
+ * A caller's normalized refresh request: rebuild or incrementally update the workspace graph at
+ * `root`. Refresh runs the provider's build pipeline; it is not a query and never reads the graph.
+ */
+interface CodeGraphRefreshRequest {
+  /** The workspace root whose graph to rebuild. */
+  readonly root: string
+  /** Whether to run the full pipeline or the incremental pass. */
+  readonly mode: CodeGraphRefreshMode
+}
+```
+
 ## Provider and service
 
 One provider per scope: a second registration fails with `CODEGRAPH_CONFLICT`, so selection never depends on registration order, and disposal of the registering fiber releases the slot.
@@ -96,6 +113,16 @@ registerProvider(provider: CodeGraphProvider): () => void
  * @returns the normalized, closed-union result.
  */
 query(request: CodeGraphQueryRequest, signal?: AbortSignal): Promise<CodeGraphResult>
+
+/**
+ * Rebuild or incrementally update the workspace graph through the registered provider. No
+ * provider throws `CodeGraphError` `CODEGRAPH_UNAVAILABLE`. Long-running: callers own deadlines
+ * and background-job placement.
+ * @param request - the refresh request (root plus mode).
+ * @param signal - optional cancellation forwarded to the provider.
+ * @returns the build run's bounded text report.
+ */
+refresh(request: CodeGraphRefreshRequest, signal?: AbortSignal): Promise<CodeGraphResult>
 ```
 
 Source: [`packages/codegraph/codegraph/src/types.ts`](../../packages/codegraph/codegraph/src/types.ts)

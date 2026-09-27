@@ -12,29 +12,38 @@
 import type { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import { defineTool } from '@deepseek-ai/dsh-tools'
-import { CodeGraphError } from '@deepseek-ai/dsh-codegraph'
-import type { CodeGraphQuery } from '@deepseek-ai/dsh-codegraph'
+import { CodeGraphError, refreshJobHooks } from '@deepseek-ai/dsh-codegraph'
+import type { CodeGraphQuery, CodeGraphRefreshMode, CodeGraphRefreshRequest, CodeGraphService } from '@deepseek-ai/dsh-codegraph'
+import type { JobId, JobRegistry, JobSpec } from '@deepseek-ai/dsh-jobs'
 import { MAX_TIMER_DELAY_MS } from '@deepseek-ai/dsh-timeout'
 import {
   budgetForChars,
-  CODEGRAPH_OPERATIONS,
+  CODEGRAPH_TOOL_OPERATIONS,
   DEFAULT_MAX_RESULT_CHARS,
   formatReport,
   parseCodeGraphArgs,
   presentCodeGraphCall,
 } from './render.ts'
-import type { CodeGraphToolInput } from './render.ts'
+import type { CodeGraphQueryInput } from './render.ts'
 import { sessionCwd } from './session-cwd.ts'
 
 export {
   budgetForChars,
   CODEGRAPH_OPERATIONS,
+  CODEGRAPH_TOOL_OPERATIONS,
   DEFAULT_MAX_RESULT_CHARS,
   formatReport,
   parseCodeGraphArgs,
   presentCodeGraphCall,
 } from './render.ts'
 export { sessionCwd } from './session-cwd.ts'
+
+/** This producer's job kind on `ctx.jobs` (background graph builds and refreshes). */
+declare module '@deepseek-ai/dsh-jobs' {
+  interface JobKindMap {
+    codegraph: 'codegraph'
+  }
+}
 
 /** Cordis plugin name for loader diagnostics. */
 export const name = 'tool-codegraph'
@@ -49,17 +58,20 @@ export const DEFAULT_CODEGRAPH_TOOL_TIMEOUT_MS = 60_000
 export const CODEGRAPH_PROMPT_TEXT =
   'Use search/read for ordinary navigation and lsp for precise symbol positions. Use code_graph for repository-level structure: an overview map, how two areas connect, or what a change impacts. The graph is built outside this tool; if it is missing, the error explains how to build it.'
 
-/** Plugin configuration: the result cap and the timeout budget. */
+/** Plugin configuration: the result cap, the timeout budget, and refresh gating. */
 export interface Config {
   /** Largest complete rendered result in characters, including truncation metadata (default 16000). */
   maxResultChars?: number
   /** Tool-call timeout budget in ms (default 60000). */
   timeoutMs?: number
+  /** Expose the build and update operations (default true); disabled calls fail loudly. */
+  allowRefresh?: boolean
 }
 
 export const Config: z<Config> = z.object({
   maxResultChars: z.number().default(DEFAULT_MAX_RESULT_CHARS),
   timeoutMs: z.number().max(MAX_TIMER_DELAY_MS).default(DEFAULT_CODEGRAPH_TOOL_TIMEOUT_MS),
+  allowRefresh: z.boolean().default(true),
 })
 
 type ResolvedConfig = Required<Config>
@@ -83,13 +95,13 @@ export function apply(ctx: Context, config: Config): void {
   ctx.tools.register(defineTool({
     name: 'code_graph',
     description:
-      'Query the repository code graph. operation is one of repoMap, query, explain, path, affected, stats. question is search terms for query; node is a symbol label or id for explain and affected; source and target are node labels for path. depth limits traversal hops; directed follows only caller-to-callee edges.',
+      'Query the repository code graph. operation is one of repoMap, query, explain, path, affected, stats, build, update. question is search terms for query; node is a symbol label or id for explain and affected; source and target are node labels for path. depth limits traversal hops; directed follows only caller-to-callee edges. build and update rebuild the workspace graph as a background job and return the job id.',
     parameters: {
       operation: {
         type: 'string',
         required: true,
-        enum: [...CODEGRAPH_OPERATIONS],
-        description: 'repoMap, query, explain, path, affected, or stats.',
+        enum: [...CODEGRAPH_TOOL_OPERATIONS],
+        description: 'repoMap, query, explain, path, affected, stats, build, or update.',
       },
       question: { type: 'string', description: 'query only: natural-language search terms.' },
       node: { type: 'string', description: 'explain and affected only: a symbol label, id, or source file path.' },
@@ -100,17 +112,33 @@ export function apply(ctx: Context, config: Config): void {
     },
     output: {
       schema: {
-        type: 'object',
-        additionalProperties: false,
-        properties: {
-          kind: { type: 'string', required: true, const: 'text' },
-          text: { type: 'string', required: true },
-          truncated: { type: 'boolean', required: true },
-        },
+        oneOf: [
+          {
+            type: 'object',
+            additionalProperties: false,
+            properties: {
+              kind: { type: 'string', required: true, const: 'text' },
+              text: { type: 'string', required: true },
+              truncated: { type: 'boolean', required: true },
+            },
+          },
+          {
+            type: 'object',
+            additionalProperties: false,
+            properties: {
+              kind: { type: 'string', required: true, const: 'background' },
+              jobId: { type: 'string', required: true },
+            },
+          },
+        ],
       },
       render: (_args, value) => {
-        // The result union has one arm; field access here breaks compilation when a second arrives.
-        return [{ type: 'text', text: formatReport(value.text, value.truncated, resolved.maxResultChars) }]
+        switch (value.kind) {
+          case 'text':
+            return [{ type: 'text', text: formatReport(value.text, value.truncated, resolved.maxResultChars) }]
+          case 'background':
+            return [{ type: 'text', text: `started background job ${value.jobId}` }]
+        }
       },
     },
     timeoutMs: resolved.timeoutMs,
@@ -119,6 +147,22 @@ export function apply(ctx: Context, config: Config): void {
       const root = sessionCwd(exec)
       if (root === undefined) {
         throw new CodeGraphError('the code_graph tool requires a session workspace cwd', 'CODEGRAPH_WORKSPACE_REQUIRED')
+      }
+      if (input.operation === 'build' || input.operation === 'update') {
+        const mode = input.operation
+        if (!resolved.allowRefresh) {
+          throw new CodeGraphError(`the ${mode} operation is disabled for this deployment (allowRefresh: false)`, 'CODEGRAPH_REFRESH_DISABLED')
+        }
+        const jobs = ctx.get('jobs')
+        // Builds run minutes, so an available registry plus an owning agent takes them off the turn;
+        // otherwise the call runs in the foreground under the timeout budget.
+        if (jobs !== undefined && exec.agent !== undefined) {
+          exec.signal.throwIfAborted()
+          return { kind: 'background' as const, jobId: startRefreshJob(jobs, ctx.codeGraph, root, mode, exec.agent.id) }
+        }
+        const refreshed = await ctx.codeGraph.refresh({ root, mode }, exec.signal)
+        // The result union has one arm; field access here breaks compilation when a second arrives.
+        return { kind: 'text' as const, text: refreshed.text, truncated: refreshed.truncated }
       }
       const result = await ctx.codeGraph.query(
         { root, query: buildSeamQuery(input, budgetForChars(resolved.maxResultChars)) },
@@ -131,8 +175,30 @@ export function apply(ctx: Context, config: Config): void {
   }))
 }
 
+/**
+ * Register one background graph refresh and return its job id. The job ends `completed` when the
+ * refresh settles, `killed` when cancelled, and `failed` with the provider's message otherwise.
+ */
+function startRefreshJob(
+  jobs: JobRegistry,
+  codeGraph: Pick<CodeGraphService, 'refresh'>,
+  root: string,
+  mode: CodeGraphRefreshMode,
+  owner: NonNullable<JobSpec['owner']>,
+): JobId {
+  const cancel = new AbortController()
+  return jobs.start({
+    kind: 'codegraph',
+    label: `astria ${mode} ${root}`,
+    owner,
+    run: () => refreshJobHooks(codeGraph.refresh({ root, mode } satisfies CodeGraphRefreshRequest, cancel.signal), cancel, {
+      completedDetail: `graph ${mode === 'build' ? 'built' : 'updated'}`,
+    }),
+  })
+}
+
 /** Build the seam query from validated input plus the derived token budget. */
-function buildSeamQuery(input: CodeGraphToolInput, budgetTokens: number): CodeGraphQuery {
+function buildSeamQuery(input: CodeGraphQueryInput, budgetTokens: number): CodeGraphQuery {
   switch (input.operation) {
     case 'repoMap':
       return { operation: 'repoMap', budgetTokens }

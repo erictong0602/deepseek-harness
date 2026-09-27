@@ -1725,7 +1725,7 @@ The lsp tool keeps provider selection and language-server subprocesses behind ct
 
 ### `code_graph`
 
-Query the repository code graph. operation is one of repoMap, query, explain, path, affected, stats. question is search terms for query; node is a symbol label or id for explain and affected; source and target are node labels for path. depth limits traversal hops; directed follows only caller-to-callee edges.
+Query the repository code graph. operation is one of repoMap, query, explain, path, affected, stats, build, update. question is search terms for query; node is a symbol label or id for explain and affected; source and target are node labels for path. depth limits traversal hops; directed follows only caller-to-callee edges. build and update rebuild the workspace graph as a background job and return the job id.
 
 ```json
 {
@@ -1733,14 +1733,16 @@ Query the repository code graph. operation is one of repoMap, query, explain, pa
   "properties": {
     "operation": {
       "type": "string",
-      "description": "repoMap, query, explain, path, affected, or stats.",
+      "description": "repoMap, query, explain, path, affected, stats, build, or update.",
       "enum": [
         "repoMap",
         "query",
         "explain",
         "path",
         "affected",
-        "stats"
+        "stats",
+        "build",
+        "update"
       ]
     },
     "question": {

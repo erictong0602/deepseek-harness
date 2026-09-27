@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-`dsh-tool-codegraph` lets a model ask repository-level questions through one read-only `code_graph` tool: an overview repo map, a natural-language query, a symbol explanation, the shortest path between two areas, the blast radius of a change, or graph statistics. Per-operation arguments are validated (a `query` needs `question`, a `path` needs `source` and `target`), results are capped in complete rendered characters, and the provider's token budget derives from that cap. The package requires a registered `ctx.codeGraph` provider and a session workspace root. Choose it for repository-level structure; ordinary navigation should continue to use `search`/`read`, and precise symbol positions `lsp`.
+`dsh-tool-codegraph` lets a model ask repository-level questions and rebuild the graph through one tool: six query operations (overview repo map, natural-language query, symbol explanation, shortest path, blast radius, graph statistics) and two refresh operations (`build`, `update`). Refreshes run as `ctx.jobs` background jobs when a registry and an owning agent exist, returning the job id at once, and foreground otherwise. Arguments are validated per operation, results are capped in complete rendered characters, and the provider's token budget derives from that cap. The package requires a registered `ctx.codeGraph` provider and a session workspace root; choose it for repository-level structure, not ordinary navigation.
 
 ## Table of Contents
 
@@ -29,18 +29,19 @@ An agent uses `code_graph` when a question is about structure — "what does cha
 
 ### The tool
 
-`code_graph` takes `operation` (`repoMap`, `query`, `explain`, `path`, `affected`, or `stats`) plus the operation's subject: `question` for `query`; `node` for `explain` and `affected`; `source` and `target` for `path`. `depth` (positive integer) and `directed` refine traversal. Provider choice, token budgets, the executable, and timeouts stay outside model input.
+`code_graph` takes `operation` (`repoMap`, `query`, `explain`, `path`, `affected`, `stats`, `build`, or `update`) plus the operation's subject: `question` for `query`; `node` for `explain` and `affected`; `source` and `target` for `path`. `depth` (positive integer) and `directed` refine traversal; `build` and `update` take no subject. Provider choice, token budgets, background placement, the executable, and timeouts stay outside model input.
 
 ### What the model gets back
 
-Every operation returns the provider's complete report text plus a `truncated` fact. The rendered result is capped in complete characters with an in-cap truncation marker; a provider-side truncation gets its own marker. An empty report renders a distinct `No output.` line, and a provider failure arrives as the error text the model can read and route on — a missing graph says how to build it.
+Every query returns the provider's complete report text plus a `truncated` fact. The rendered result is capped in complete characters with an in-cap truncation marker; a provider-side truncation gets its own marker. An empty report renders a distinct `No output.` line, and a provider failure arrives as the error text the model can read and route on — a missing graph says how to build it. A background refresh returns `started background job <id>` immediately; the job tools read its output and completion.
 
 ### Configuration
 
 | Key | Default | Meaning |
 |---|---|---|
 | `maxResultChars` | `16000` | Largest complete rendered result, including truncation metadata; also derives the provider's token budget |
-| `timeoutMs` | `60000` | Tool-call timeout budget enforced by `dsh-tool-call-timeout-policy`; covers one complete provider child run and is not model-configurable |
+| `timeoutMs` | `60000` | Tool-call timeout budget enforced by `dsh-tool-call-timeout-policy`; covers one complete foreground provider child run and is not model-configurable |
+| `allowRefresh` | `true` | Expose the `build` and `update` operations; a disabled call fails loudly instead of silently |
 
 The generated [configuration catalog](../../../docs/config-catalog.md#deepseek-aidsh-tool-codegraph) is the exhaustive source for every accepted field.
 
@@ -156,8 +157,8 @@ None; UI presentation is outside the model request.
 
 These limits define when the tool is a poor fit. They are current package constraints, not a task backlog.
 
-- **No freshness guarantee** — the tool answers whatever graph the workspace currently holds; a stale graph returns stale structure, and refreshing it (`astria update .`) stays with deployments.
-- **No graph-build operation** — building or watching the graph is not model-facing; a background-job build operation is deferred work that would arrive with producer-config gating on `ctx.jobs`.
+- **No freshness guarantee** — the tool answers whatever graph the workspace currently holds; a stale graph returns stale structure until the model or a listener refreshes it.
+- **Foreground fallback is timeout-bounded** — without a job registry or an owning agent, `build`/`update` run inside the turn under `timeoutMs`, which a large workspace can outgrow; raise the budget or compose `dsh-jobs` instead.
 
 <a id="dev-note"></a>
 ### Dev Note

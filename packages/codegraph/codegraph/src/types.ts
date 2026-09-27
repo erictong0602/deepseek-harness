@@ -58,6 +58,20 @@ export type CodeGraphResult = {
   readonly truncated: boolean
 }
 
+/** One graph refresh mode: the full pipeline (`build`) or an incremental AST-only pass (`update`). */
+export type CodeGraphRefreshMode = 'build' | 'update'
+
+/**
+ * A caller's normalized refresh request: rebuild or incrementally update the workspace graph at
+ * `root`. Refresh runs the provider's build pipeline; it is not a query and never reads the graph.
+ */
+export interface CodeGraphRefreshRequest {
+  /** The workspace root whose graph to rebuild. */
+  readonly root: string
+  /** Whether to run the full pipeline or the incremental pass. */
+  readonly mode: CodeGraphRefreshMode
+}
+
 /**
  * A code-graph backend registered on `ctx.codeGraph`. The registry holds at most one provider per
  * scope; a second registration fails with `CODEGRAPH_CONFLICT`, so selection never depends on
@@ -74,6 +88,14 @@ export interface CodeGraphProvider {
    * @returns the normalized, closed-union result.
    */
   query(request: CodeGraphQueryRequest, signal?: AbortSignal): Promise<CodeGraphResult>
+  /**
+   * Rebuild or incrementally update the workspace graph. Long-running: callers own deadlines and
+   * background-job placement; the provider honors cancellation.
+   * @param request - the refresh request (root plus mode).
+   * @param signal - optional cancellation; the provider stops its build when it aborts.
+   * @returns the build run's bounded text report.
+   */
+  refresh(request: CodeGraphRefreshRequest, signal?: AbortSignal): Promise<CodeGraphResult>
 }
 
 /**
@@ -96,4 +118,13 @@ export interface CodeGraphService {
    * @returns the normalized, closed-union result.
    */
   query(request: CodeGraphQueryRequest, signal?: AbortSignal): Promise<CodeGraphResult>
+  /**
+   * Rebuild or incrementally update the workspace graph through the registered provider. No
+   * provider throws `CodeGraphError` `CODEGRAPH_UNAVAILABLE`. Long-running: callers own deadlines
+   * and background-job placement.
+   * @param request - the refresh request (root plus mode).
+   * @param signal - optional cancellation forwarded to the provider.
+   * @returns the build run's bounded text report.
+   */
+  refresh(request: CodeGraphRefreshRequest, signal?: AbortSignal): Promise<CodeGraphResult>
 }

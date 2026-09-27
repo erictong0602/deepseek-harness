@@ -59,6 +59,23 @@ type CodeGraphResult = {
 }
 ```
 
+## 刷新
+
+刷新在查询路径之外重建工作区图：`build` 运行提供方的完整流水线，`update` 运行增量 AST-only 重建。刷新由调用方调度 — 模型可见工具通过 `ctx.jobs` 将其移出回合，编辑后监听器自行调度 — 并返回同样的有界文本结果联合。
+
+```ts type-equiv
+/**
+ * A caller's normalized refresh request: rebuild or incrementally update the workspace graph at
+ * `root`. Refresh runs the provider's build pipeline; it is not a query and never reads the graph.
+ */
+interface CodeGraphRefreshRequest {
+  /** The workspace root whose graph to rebuild. */
+  readonly root: string
+  /** Whether to run the full pipeline or the incremental pass. */
+  readonly mode: CodeGraphRefreshMode
+}
+```
+
 ## 提供方与服务
 
 每个作用域一个提供方：第二个注册以 `CODEGRAPH_CONFLICT` 失败，因此选择永不依赖注册顺序，注册纤程的释放会归还槽位。
@@ -96,6 +113,16 @@ registerProvider(provider: CodeGraphProvider): () => void
  * @returns the normalized, closed-union result.
  */
 query(request: CodeGraphQueryRequest, signal?: AbortSignal): Promise<CodeGraphResult>
+
+/**
+ * Rebuild or incrementally update the workspace graph through the registered provider. No
+ * provider throws `CodeGraphError` `CODEGRAPH_UNAVAILABLE`. Long-running: callers own deadlines
+ * and background-job placement.
+ * @param request - the refresh request (root plus mode).
+ * @param signal - optional cancellation forwarded to the provider.
+ * @returns the build run's bounded text report.
+ */
+refresh(request: CodeGraphRefreshRequest, signal?: AbortSignal): Promise<CodeGraphResult>
 ```
 
 Source: [`packages/codegraph/codegraph/src/types.ts`](../../packages/codegraph/codegraph/src/types.ts)

@@ -27,6 +27,9 @@
       "path": "../../core/system-prompt"
     },
     {
+      "path": "../../jobs/jobs"
+    },
+    {
       "path": "../../util/timeout"
     },
     {

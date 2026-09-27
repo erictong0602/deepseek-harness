@@ -16,16 +16,21 @@ import type {
   CodeGraphOperation,
   CodeGraphProvider,
   CodeGraphQueryRequest,
+  CodeGraphRefreshRequest,
   CodeGraphResult,
   CodeGraphService,
 } from './types.ts'
 
 export { CodeGraphProviderId } from './brand.ts'
+export { refreshJobHooks } from './jobs.ts'
+export type { RefreshJobOptions } from './jobs.ts'
 export type {
   CodeGraphOperation,
   CodeGraphProvider,
   CodeGraphQuery,
   CodeGraphQueryRequest,
+  CodeGraphRefreshMode,
+  CodeGraphRefreshRequest,
   CodeGraphResult,
   CodeGraphService,
 } from './types.ts'
@@ -89,6 +94,14 @@ export class CodeGraph extends Service implements CodeGraphService {
       throw new CodeGraphError('no code-graph provider is registered in this scope', 'CODEGRAPH_UNAVAILABLE')
     }
     return provider.query(request, signal)
+  }
+
+  async refresh(request: CodeGraphRefreshRequest, signal?: AbortSignal): Promise<CodeGraphResult> {
+    const provider = this.provider
+    if (provider === undefined) {
+      throw new CodeGraphError('no code-graph provider is registered in this scope', 'CODEGRAPH_UNAVAILABLE')
+    }
+    return provider.refresh(request, signal)
   }
 }
 

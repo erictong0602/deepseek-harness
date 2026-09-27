@@ -1667,6 +1667,11 @@
       "source": "packages/codegraph/codegraph/src/types.ts"
     },
     {
+      "doc": "docs/subsystems/codegraph.md",
+      "symbol": "CodeGraphRefreshRequest",
+      "source": "packages/codegraph/codegraph/src/types.ts"
+    },
+    {
       "doc": "docs/subsystems/lsp.md",
       "symbol": "LspOperation",
       "source": "packages/lsp/lsp/src/types.ts"

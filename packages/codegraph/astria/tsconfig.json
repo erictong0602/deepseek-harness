@@ -21,6 +21,12 @@
       "path": "../../llm/llm"
     },
     {
+      "path": "../../core/tools"
+    },
+    {
+      "path": "../../jobs/jobs"
+    },
+    {
       "path": "../../subprocess/subprocess"
     },
     {

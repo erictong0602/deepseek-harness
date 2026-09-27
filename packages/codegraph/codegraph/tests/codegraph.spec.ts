@@ -5,24 +5,36 @@ import CodeGraph, {
   CodeGraphProviderId,
   type CodeGraphProvider,
   type CodeGraphQueryRequest,
+  type CodeGraphRefreshRequest,
   type CodeGraphResult,
 } from '@deepseek-ai/dsh-codegraph'
 
-/** A scripted provider that records the queries it receives. */
+/** A scripted provider that records the queries and refreshes it receives. */
 function makeProvider(
   id = 'graph',
   result: CodeGraphResult = { kind: 'text', text: 'report', truncated: false },
-): CodeGraphProvider & { seen: CodeGraphQueryRequest[]; seenSignals: (AbortSignal | undefined)[] } {
+): CodeGraphProvider & {
+  seen: CodeGraphQueryRequest[]
+  seenSignals: (AbortSignal | undefined)[]
+  refreshes: CodeGraphRefreshRequest[]
+} {
   const seen: CodeGraphQueryRequest[] = []
   const seenSignals: (AbortSignal | undefined)[] = []
+  const refreshes: CodeGraphRefreshRequest[] = []
   return {
     id: CodeGraphProviderId(id),
     seen,
     seenSignals,
+    refreshes,
     query(request, signal) {
       seen.push(request)
       seenSignals.push(signal)
       return Promise.resolve(result)
+    },
+    refresh(request, signal) {
+      refreshes.push(request)
+      seenSignals.push(signal)
+      return Promise.resolve({ kind: 'text', text: 'built', truncated: false })
     },
   }
 }
@@ -74,6 +86,21 @@ describe('CodeGraph registration', () => {
   it('throws CODEGRAPH_UNAVAILABLE when no provider is registered', async () => {
     const { codeGraph } = await mountCodeGraph()
     await expect(codeGraph.query(request)).rejects.toThrow(expect.objectContaining({ code: 'CODEGRAPH_UNAVAILABLE' }))
+  })
+
+  it('routes a refresh to the registered provider', async () => {
+    const { codeGraph } = await mountCodeGraph()
+    const provider = makeProvider()
+    codeGraph.registerProvider(provider)
+    const signal = new AbortController().signal
+    await expect(codeGraph.refresh({ root: '/ws', mode: 'update' }, signal)).resolves.toEqual({ kind: 'text', text: 'built', truncated: false })
+    expect(provider.refreshes).toEqual([{ root: '/ws', mode: 'update' }])
+    expect(provider.seenSignals[0]).toBe(signal)
+  })
+
+  it('throws CODEGRAPH_UNAVAILABLE for refresh when no provider is registered', async () => {
+    const { codeGraph } = await mountCodeGraph()
+    await expect(codeGraph.refresh({ root: '/ws', mode: 'build' })).rejects.toThrow(expect.objectContaining({ code: 'CODEGRAPH_UNAVAILABLE' }))
   })
 
   it('forwards the cancellation signal to the selected provider', async () => {

@@ -46,12 +46,19 @@ Nothing is required: the defaults run `astria` resolved on the scrubbed PATH.
 | `maxOutputBytes` | `1000000` | In-memory cap for collected stdout per query; overflow keeps the tail and marks the result truncated |
 | `maxStderrBytes` | `100000` | In-memory cap for the stderr tail included in exit failures |
 | `killGraceMs` | `2000` | Termination grace for cancelled or disposed queries |
+| `autoUpdate.enabled` | `false` | After a successful file-mutating tool result, start one debounced background `astria update` job owned by the editing agent and inject a notice when the refreshed graph lands; needs a job registry and the tool runtime composed |
+| `autoUpdate.debounceMs` | `3000` | Quiet window after the last edit before the refresh job starts |
+| `autoUpdate.tools` | `write`, `edit`, `str_replace_editor` | Tool names that count as edits |
 
 The generated [configuration catalog](../../../docs/config-catalog.md#deepseek-aidsh-astria) is the exhaustive source for every accepted field.
 
 ### What a query does
 
 Each query maps onto one astria subcommand (`map`, `query`, `explain`, `path`, `affected`, `stats`) with `--graph <root>` pinning the workspace; refinement fields become `--depth`, `--directed`, and `--budget` flags. The child runs once with collected stdout/stderr; exit 0 returns the report text with its truncation fact, and any other exit fails as a structured `CODEGRAPH_EXIT` error whose message carries the bounded stderr tail — so a missing graph surfaces as the CLI's own guidance, not a silent empty result. Cancellation and plugin disposal terminate the child through the subprocess seam's managed range.
+
+### Refresh and automatic updates
+
+`refresh` runs the same one-shot discipline over `astria run` (full pipeline) or `astria update` (incremental AST-only pass); callers own placement — the `code_graph` tool schedules builds as background jobs through `ctx.jobs` under this package's `codegraph` job kind. With `autoUpdate.enabled`, a `tools/post-execute` listener watches the configured file-mutating tools and starts one debounced, agent-owned background update per workspace after edits settle, injecting an `astria`-sourced notice the next request sees. The listener activates only where a job registry and the tool runtime are composed.
 
 -----
 
@@ -104,9 +111,10 @@ No direct invalidation; `dsh-tool-codegraph` owns request-prefix changes.
 
 These limits define when the provider is a poor fit or needs special operational care. They are current package constraints, not a task backlog.
 
-- **One process spawn per query** — each query pays CLI startup (including SQLite open); latency-sensitive deployments should wait for the persistent-server variant below.
+- **One process spawn per query** — each query (and each refresh) pays CLI startup (including SQLite open); latency-sensitive deployments should wait for the persistent-server variant below.
 - **Human-oriented CLI output** — astria v1 has no machine-readable output flags, so results are the CLI's token-budgeted text verbatim; a `--json` surface upstream would let the seam grow structured result arms.
 - **No confinement policy** — this package trusts the configured executable and adds no sandbox; a restricted deployment must supply appropriate subprocess providers or a same-world sandbox wrapper.
+- **Auto-update sees only tool-mediated edits** — the listener reacts to configured tool names (`write`, `edit`, `str_replace_editor` by default); shell-driven file changes reach the graph only through the model's next explicit refresh.
 - **Deferred: persistent server provider** — driving `astria mcp` as a pooled stdio process (the `lsp-stdio` shape) would remove the per-query spawn cost; the seam needs no change for it.
 
 <a id="dev-note"></a>

@@ -5,7 +5,7 @@
  * @module @deepseek-ai/dsh-astria/args
  */
 
-import type { CodeGraphQueryRequest } from '@deepseek-ai/dsh-codegraph'
+import type { CodeGraphQueryRequest, CodeGraphRefreshRequest } from '@deepseek-ai/dsh-codegraph'
 import { assertNever } from '@deepseek-ai/dsh-util-values'
 
 /**
@@ -49,4 +49,14 @@ export function buildAstriaArgs(request: CodeGraphQueryRequest): string[] {
 /** Spread the token-budget flag only when the request set one. */
 function budgetArgs(budgetTokens: number | undefined): string[] {
   return budgetTokens === undefined ? [] : ['--budget', String(budgetTokens)]
+}
+
+/**
+ * Build the astria CLI arguments for one refresh request: the `run` (full pipeline) or `update`
+ * (incremental AST-only) subcommand pinned to the workspace root.
+ * @param request - the refresh request (root plus mode).
+ * @returns the argv tail following the executable (and any configured global arguments).
+ */
+export function buildAstriaRefreshArgs(request: CodeGraphRefreshRequest): string[] {
+  return [request.mode === 'build' ? 'run' : 'update', '--graph', request.root]
 }

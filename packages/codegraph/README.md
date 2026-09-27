@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-The codegraph group lets agents answer repository-level questions through a code knowledge graph: an overview map ranked by importance, natural-language queries, symbol explanations, shortest paths between areas, and the blast radius of a change. Use `astria/` to answer those queries by running the astria CLI, and `tool-codegraph/` to make them available to the model. The shared `codegraph/` package keeps provider choice and normalized results consistent, so changing the graph backend does not change model requests. Deployments must install the backend and build the workspace graph; this group ships neither.
+The codegraph group lets agents answer repository-level questions through a code knowledge graph: an overview map ranked by importance, natural-language queries, symbol explanations, shortest paths, and the blast radius of a change — plus background builds, incremental refreshes, and optional post-edit auto-updates. Use `astria/` to query and refresh by running the astria CLI, and `tool-codegraph/` to expose both to the model. The shared `codegraph/` package keeps provider choice and normalized results consistent, so changing the graph backend does not change model requests. Deployments install the backend; this group ships neither binaries nor prebuilt graphs.
 
 ## Table of Contents
 

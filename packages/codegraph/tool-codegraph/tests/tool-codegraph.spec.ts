@@ -1,23 +1,32 @@
 import { describe, expect, it } from 'vitest'
 import { resolve } from 'node:path'
 import { Context } from '@deepseek-ai/cordis'
+import { JobRegistry } from '@deepseek-ai/dsh-jobs'
+import type { JobHooks, JobId, JobSpec } from '@deepseek-ai/dsh-jobs'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import ToolRuntime from '@deepseek-ai/dsh-tools'
-import CodeGraph, { CodeGraphProviderId, type CodeGraphProvider, type CodeGraphQueryRequest, type CodeGraphResult } from '@deepseek-ai/dsh-codegraph'
+import CodeGraph, { CodeGraphProviderId, type CodeGraphProvider, type CodeGraphQueryRequest, type CodeGraphRefreshRequest, type CodeGraphResult } from '@deepseek-ai/dsh-codegraph'
 import * as ToolCodeGraph from '@deepseek-ai/dsh-tool-codegraph'
-import { CODEGRAPH_OPERATIONS, CODEGRAPH_PROMPT_TEXT, DEFAULT_CODEGRAPH_TOOL_TIMEOUT_MS } from '@deepseek-ai/dsh-tool-codegraph'
+import { CODEGRAPH_PROMPT_TEXT, CODEGRAPH_TOOL_OPERATIONS, DEFAULT_CODEGRAPH_TOOL_TIMEOUT_MS } from '@deepseek-ai/dsh-tool-codegraph'
 
-/** A scripted provider recording queries; `respond` yields the result or throws. */
+/** A scripted provider recording queries and refreshes; `respond` yields the result or throws. */
 function stubProvider(
   respond: (request: CodeGraphQueryRequest) => CodeGraphResult,
-): CodeGraphProvider & { seen: CodeGraphQueryRequest[] } {
+  refreshRespond: (request: CodeGraphRefreshRequest, signal?: AbortSignal) => CodeGraphResult = () => ({ kind: 'text', text: 'graph built', truncated: false }),
+): CodeGraphProvider & { seen: CodeGraphQueryRequest[]; refreshes: CodeGraphRefreshRequest[] } {
   const seen: CodeGraphQueryRequest[] = []
+  const refreshes: CodeGraphRefreshRequest[] = []
   return {
     id: CodeGraphProviderId('stub'),
     seen,
+    refreshes,
     query(request) {
       seen.push(request)
       return Promise.resolve(respond(request))
+    },
+    refresh(request, signal) {
+      refreshes.push(request)
+      return Promise.resolve(refreshRespond(request, signal))
     },
   }
 }
@@ -43,7 +52,7 @@ function call(ctx: Context, args: unknown, cwd: string | null = workspaceRoot) {
     callId: `c-${++seq}` as never,
     name: 'code_graph',
     arguments: args,
-    ...cwd !== null ? { agent: { session: { header: { cwd } } } as never } : {},
+    ...cwd !== null ? { agent: { id: 'session-1', session: { header: { cwd } } } as never } : {},
   })
 }
 
@@ -68,10 +77,10 @@ describe('tool-codegraph registration', () => {
     expect(ctx.tools.get('code_graph')?.timeoutMs).toBe(5000)
   })
 
-  it('exposes exactly the six operations in the schema enum', async () => {
+  it('exposes exactly the eight operations in the schema enum', async () => {
     const { ctx } = await mount(stubProvider(() => okResult))
     const schema = ctx.tools.get('code_graph')?.parameters as { properties: { operation: { enum: string[] } } }
-    expect(schema.properties.operation.enum).toEqual([...CODEGRAPH_OPERATIONS])
+    expect(schema.properties.operation.enum).toEqual([...CODEGRAPH_TOOL_OPERATIONS])
   })
 
   it('has no default export (namespace plugin shape)', () => {
@@ -87,6 +96,38 @@ describe('tool-codegraph registration', () => {
       .rejects.toThrow(/timeoutMs/)
   })
 })
+
+/** A registry service that records and starts specs, issuing fixed ids. */
+class FakeJobs extends JobRegistry {
+  readonly specs: JobSpec[] = []
+  readonly hooks: JobHooks[] = []
+  readonly events = { subscribe: () => () => undefined }
+  start(spec: JobSpec): JobId {
+    this.specs.push(spec)
+    this.hooks.push(spec.run({ id: 'codegraph-1' as JobId, append: () => undefined, updateProgress: () => undefined }))
+    return 'codegraph-1' as JobId
+  }
+  list() { return [] }
+  get(_id: never, _caller?: never): never { throw new Error('unused') }
+  read(_id: never, _caller?: never): never { throw new Error('unused') }
+  readAt(_id: never, _from: never, _caller?: never): never { throw new Error('unused') }
+  kill(_id: never, _caller?: never, _reason?: string) { return 'already-finished' as const }
+  async wait(_id: never, _timeoutMs: number, _caller?: never, _signal?: AbortSignal): Promise<never> { throw new Error('unused') }
+  remove(_id: never, _caller?: never): void { throw new Error('unused') }
+  attachController(_name: string) { return () => undefined }
+}
+
+/** Mount with a jobs registry so refresh operations can go background. */
+async function mountWithJobs(provider?: CodeGraphProvider): Promise<{ ctx: Context; jobs: FakeJobs }> {
+  const ctx = new Context()
+  await ctx.plugin(SystemPrompt)
+  await ctx.plugin(ToolRuntime)
+  await ctx.plugin(CodeGraph)
+  if (provider) (ctx.codeGraph as CodeGraph).registerProvider(provider)
+  await ctx.plugin(FakeJobs)
+  await ctx.plugin(ToolCodeGraph, {})
+  return { ctx, jobs: ctx.jobs as FakeJobs }
+}
 
 describe('tool-codegraph execution', () => {
   it('passes the session cwd and the derived token budget for repoMap', async () => {
@@ -197,6 +238,103 @@ describe('tool-codegraph execution', () => {
     const result = await call(ctx, { operation: 'affected', node: 'x', depth: 0 })
     expect(result.isError).toBe(true)
     expect((result.content[0] as { text: string }).text).toContain('depth must be a positive integer')
+  })
+
+  it('runs a foreground build through the seam refresh', async () => {
+    const provider = stubProvider(() => okResult)
+    const { ctx } = await mount(provider)
+    const result = await call(ctx, { operation: 'build' })
+    expect(result.isError).toBe(false)
+    expect(provider.refreshes).toEqual([{ root: workspaceRoot, mode: 'build' }])
+    expect(result).toMatchObject({ value: { kind: 'text', text: 'graph built' } })
+  })
+
+  it('runs a foreground update when no job registry is composed', async () => {
+    const provider = stubProvider(() => okResult)
+    const { ctx } = await mount(provider)
+    const result = await call(ctx, { operation: 'update' })
+    expect(result.isError).toBe(false)
+    expect(provider.refreshes).toEqual([{ root: workspaceRoot, mode: 'update' }])
+  })
+
+  it('starts a background build job and returns its id', async () => {
+    const provider = stubProvider(() => okResult)
+    const { ctx, jobs } = await mountWithJobs(provider)
+    const result = await call(ctx, { operation: 'build' })
+    expect(result.isError).toBe(false)
+    expect(result).toMatchObject({ value: { kind: 'background', jobId: 'codegraph-1' } })
+    expect((result.content[0] as { text: string }).text).toBe('started background job codegraph-1')
+    expect(jobs.specs[0]).toMatchObject({ kind: 'codegraph', label: `astria build ${workspaceRoot}`, owner: 'session-1' })
+    expect(provider.refreshes).toEqual([{ root: workspaceRoot, mode: 'build' }])
+    await expect(jobs.hooks[0]!.done).resolves.toEqual({ status: 'completed', detail: 'graph built' })
+  })
+
+  it('reports the update mode in a background job outcome', async () => {
+    const provider = stubProvider(() => okResult)
+    const { ctx, jobs } = await mountWithJobs(provider)
+    await call(ctx, { operation: 'update' })
+    expect(jobs.specs[0]).toMatchObject({ kind: 'codegraph', label: `astria update ${workspaceRoot}` })
+    await expect(jobs.hooks[0]!.done).resolves.toEqual({ status: 'completed', detail: 'graph updated' })
+  })
+
+  it('maps a cancelled background refresh to a killed job outcome', async () => {
+    const provider = stubProvider(
+      () => okResult,
+      (_request, signal) => new Promise((_resolve, reject) => {
+        signal?.addEventListener('abort', () => { reject(new Error('aborted')) })
+      }) as unknown as CodeGraphResult,
+    )
+    const { ctx, jobs } = await mountWithJobs(provider)
+    const { executed } = (() => {
+      const agent = { id: 'session-1', session: { header: { cwd: workspaceRoot } } }
+      return { executed: ctx.tools.execute({
+        signal: new AbortController().signal,
+        callId: 'c-cancel' as never,
+        name: 'code_graph',
+        arguments: { operation: 'update' },
+        agent: agent as never,
+      }) }
+    })()
+    await expect(executed).resolves.toBeDefined()
+    jobs.hooks[0]!.cancel('stop')
+    await expect(jobs.hooks[0]!.done).resolves.toEqual({ status: 'killed', detail: 'cancelled' })
+  })
+
+  it('maps a failed background refresh to a failed job outcome', async () => {
+    const provider = stubProvider(() => okResult, () => {
+      throw new Error('no graph found')
+    })
+    const { ctx, jobs } = await mountWithJobs(provider)
+    await call(ctx, { operation: 'update' })
+    await expect(jobs.hooks[0]!.done).resolves.toMatchObject({ status: 'failed', detail: 'no graph found' })
+  })
+
+  it('stringifies a non-Error background refresh failure', async () => {
+    const provider = stubProvider(() => okResult, () => Promise.reject('disk full') as unknown as CodeGraphResult)
+    const { ctx, jobs } = await mountWithJobs(provider)
+    await call(ctx, { operation: 'build' })
+    await expect(jobs.hooks[0]!.done).resolves.toMatchObject({ status: 'failed', detail: 'disk full' })
+  })
+
+  it('treats a reason-less job cancellation as a plain kill', async () => {
+    const provider = stubProvider(
+      () => okResult,
+      (_request, signal) => new Promise((_resolve, reject) => {
+        signal?.addEventListener('abort', () => { reject(new Error('aborted')) })
+      }) as unknown as CodeGraphResult,
+    )
+    const { ctx, jobs } = await mountWithJobs(provider)
+    await call(ctx, { operation: 'build' })
+    jobs.hooks[0]!.cancel()
+    await expect(jobs.hooks[0]!.done).resolves.toEqual({ status: 'killed', detail: 'cancelled' })
+  })
+
+  it('rejects refresh operations when disabled by configuration', async () => {
+    const provider = stubProvider(() => okResult)
+    const { ctx } = await mount(provider, { allowRefresh: false })
+    const result = await call(ctx, { operation: 'build' })
+    expect(result.isError).toBe(true)
+    expect((result.content[0] as { text: string }).text).toContain('disabled for this deployment')
   })
 
   it('surfaces a provider failure as an error result the model can read', async () => {
