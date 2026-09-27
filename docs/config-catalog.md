@@ -374,7 +374,7 @@ export interface Config {
   transport?: string
   /** MCP handshake and per-call budget for the `server` transport (ms). Default 30000. */
   serverTimeoutMs?: number
-  /** Debounced incremental refresh after file-mutating tools. Default disabled. */
+  /** Debounced incremental refresh after file-mutating tools. Default enabled. */
   autoUpdate?: AutoUpdateConfig
   /** Blast-radius context after watched edits. Default disabled. */
   editContext?: EditContextConfig
@@ -382,9 +382,9 @@ export interface Config {
   orientation?: OrientationConfig
 }
 
-/** Debounced post-edit graph refresh; enabled deployments only. */
+/** Debounced post-edit graph refresh; active wherever a job registry and the tool runtime are composed. */
 export interface AutoUpdateConfig {
-  /** Listen for file-mutating tool results and refresh the graph. Default false. */
+  /** Listen for file-mutating tool results and refresh the graph. Default true. */
   enabled?: boolean
   /** Quiet window after the last edit before the refresh job starts (ms). Default 3000. */
   debounceMs?: number
@@ -2060,7 +2060,7 @@ export interface LspLocalServerConfig {
 ## `@deepseek-ai/dsh-mcp-client`
 
 - `inject`: `tools`
-- `source`: [`packages/mcp/mcp-client/src/index.ts:104`](../packages/mcp/mcp-client/src/index.ts)
+- `source`: [`packages/mcp/mcp-client/src/index.ts:173`](../packages/mcp/mcp-client/src/index.ts)
 
 ```ts config-catalog
 /** Configuration for one stdio or Streamable HTTP MCP server. */
@@ -2108,6 +2108,12 @@ export interface StreamableHttpConfig {
   url: string
   /** Additional headers attached to MCP requests. */
   headers: Record<string, string>
+  /**
+   * OAuth authorization against the server's authorization server; omission
+   * sends only `headers`. Requires the credentials service; authorize the
+   * stored grant from a settings surface before the server accepts requests.
+   */
+  auth?: OAuthAuthConfig
   /** Timeout per tool call or resource request in milliseconds. */
   toolCallTimeoutMs: number
   /** Fail plugin activation when the initial connection or tool synchronization fails. */
@@ -2128,6 +2134,35 @@ export interface ReconnectConfig {
   maxDelayMs?: number
   /** Consecutive failed attempts per outage before giving up for good (default 10). */
   maxAttempts?: number
+}
+
+/**
+ * Configuration for OAuth authorization against a Streamable HTTP server's
+ * authorization server. All fields except `kind` are optional.
+ */
+export interface OAuthAuthConfig {
+  /** Selects the OAuth authorization-code-with-PKCE flow. */
+  kind: 'oauth'
+  /** Scopes to request; omission follows the server's advertised defaults. */
+  scopes?: string[]
+  /** Client name shown during dynamic client registration. */
+  clientName?: string
+  /**
+   * Pre-registered client id, for authorization servers without dynamic client
+   * registration. Omission registers a client dynamically and stores it in the
+   * grant record.
+   */
+  clientId?: string
+  /**
+   * Pre-registered client secret. A secret is configuration, so the documented
+   * `!!js` environment reference keeps it out of committed files.
+   */
+  clientSecret?: string
+  /**
+   * Fixed loopback callback port, for authorization servers that only accept
+   * pre-registered redirect URIs; omission uses an ephemeral port.
+   */
+  callbackPort?: number
 }
 ```
 <!-- END GENERATED config-catalog:@deepseek-ai/dsh-mcp-client -->

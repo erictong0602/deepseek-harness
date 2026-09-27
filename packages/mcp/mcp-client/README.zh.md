@@ -9,7 +9,7 @@ kind: "package-reference"
 
 ## 概述
 
-`dsh-mcp-client` 让模型使用外部 MCP（Model Context Protocol）服务器的工具与资源。每台服务器配置一条记录；其工具使用 `mcp__github__create_issue` 这样的名称。默认不启用任何服务器。随附 profile 已提供[共享资源发现与读取](../mcp-resources/README.zh.md)。调用方作用域为空时，不添加 MCP 工具或提示词文本。服务器指令作为字面文本加入已记录的系统提示词；MCP 提示词模板不受支持。缓慢或崩溃的服务器可能延迟启动，或让调用失败直至恢复。
+`dsh-mcp-client` 让模型使用外部 MCP（Model Context Protocol）服务器的工具与资源。每台服务器配置一条记录；其工具使用 `mcp__github__create_issue` 这样的名称。默认不启用任何服务器。随附 profile 已提供[共享资源发现与读取](../mcp-resources/README.zh.md)。调用方作用域为空时，不添加 MCP 工具或提示词文本。服务器指令作为字面文本加入已记录的系统提示词；MCP 提示词模板不受支持。缓慢或崩溃的服务器可能延迟启动，或让调用失败直至恢复。要求浏览器登录的 Streamable HTTP 服务器通过 [OAuth 授权](#oauth-authorization)以已存储的授权连接。
 
 ## 目录
 
@@ -58,6 +58,7 @@ kind: "package-reference"
 | `serverName` | 必填 | 服务器工具名称的 namespace；`[A-Za-z0-9_-]{1,32}`，在一个注册作用域内唯一 |
 | `command` / `args` / `env` / `cwd` | — | stdio：可执行文件、参数、合并到清洗过的环境之上的额外环境变量、工作目录 |
 | `url` / `headers` | — | streamable-http：端点 URL 与额外请求标头 |
+| `auth` | — | streamable-http：对服务器的授权服务器进行 `oauth` 授权；见 [OAuth 授权](#oauth-authorization) |
 | `toolCallTimeoutMs` | `60,000` | 每次 `tools/call` 或资源请求的超时 |
 | `maxInstructionBytes` | `32,768` | 包括服务器归属信息在内的服务器指令 UTF-8 字节上限；超出时连接失败 |
 | `failOnStartupError` | `false` | 初始连接或工具同步失败时拒绝插件激活 |
@@ -69,6 +70,26 @@ kind: "package-reference"
 生成的[配置目录](../../../docs/config-catalog.zh.md#deepseek-aidsh-mcp-client)是每个受支持字段的穷尽式真源。
 
 启动后，服务器的工具会以 `mcp__<serverName>__<tool>` 形式出现——试着用一条提示词调用其中一个。如果初始连接失败，harness 仍会启动，但该服务器的工具不会出现，并会记录一条错误。设置 `failOnStartupError: true` 会拒绝插件激活；[app-boot 的启动策略](../../boot/app-boot/README.zh.md)仍允许可选 MCP 配置项失败，而不中止 harness。
+
+<a id="oauth-authorization"></a>
+
+### OAuth 授权
+
+要求浏览器登录的 Streamable HTTP 服务器使用 `auth: oauth`。每台服务器的授权存储在 `mcp-client/<serverName>` 凭据记录中：从设置界面授权一次，同一主机上的每个组合即可复用。桥接遵循 MCP 授权规则——受保护资源与授权服务器发现、动态客户端注册（或预注册的 `clientId`）、基于环回重定向与 PKCE 的授权码流程，以及后续启动时的静默令牌刷新。
+
+```yaml
+- id: mcp-linear
+  name: '@deepseek-ai/dsh-mcp-client'
+  config:
+    serverName: linear
+    transport: streamable-http
+    url: https://mcp.linear.app/mcp
+    auth:
+      kind: oauth
+      scopes: ['issues:read', 'issues:write']
+```
+
+登录流程把授权 URL 通知给发起它的界面；浏览器无法访问主机时，可粘贴回调 URL。尚未存储授权时，要求授权的服务器会让连接尝试失败并给出待执行的操作；下一次授权提交后即自动重连——即使该服务器的重连预算已耗尽。登录需要组合提供授权与凭据服务；无头组合不提供登录界面，但同一主机上其他组合存储的授权仍可连接。`headers` 与 OAuth bearer 令牌同时生效。
 
 ### 工具命名与共存
 
@@ -116,6 +137,7 @@ kind: "package-reference"
 |---|---|
 | [`src/index.ts`](src/index.ts) | 插件入口：`Config` schema、`serverName` 预留、激活等待 |
 | [`src/connection.ts`](src/connection.ts) | 连接监督器：客户端世代、重连策略、尝试预算、dispose（资源释放） |
+| [`src/auth.ts`](src/auth.ts) | 基于单条凭据记录的 OAuth：传输角色的 bearer 读取与刷新，登录角色的环回重定向登录 |
 | [`src/server-context.ts`](src/server-context.ts) | 资源提供方注册与字面服务器指令 |
 | [`src/tools.ts`](src/tools.ts) | 工具桥接：发现、命名、注册交换、执行、图片投影 |
 | [`src/transport.ts`](src/transport.ts) | 传输工厂：带清洗环境的 stdio spawn、Streamable HTTP |

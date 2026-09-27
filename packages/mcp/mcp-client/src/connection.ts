@@ -20,6 +20,8 @@ import type { Context } from '@deepseek-ai/cordis'
 import { assertNever, type JsonValue } from '@deepseek-ai/dsh-util-values'
 import type { ServerContext } from './server-context.ts'
 import { MAX_TIMER_DELAY_MS } from '@deepseek-ai/dsh-timeout'
+import { McpAuthRequiredError } from './auth.ts'
+import type { McpOAuthProvider } from './auth.ts'
 import { createTransport } from './transport.ts'
 import { syncTools } from './tools.ts'
 import type { ToolBridgeOptions, ToolDisposers } from './tools.ts'
@@ -113,6 +115,13 @@ export interface ConnectionHandle extends ServerContext {
    * unregister every tool this server still owns.
    */
   dispose(): Promise<void>
+  /**
+   * A fresh OAuth grant was committed for this server. When the supervisor is
+   * idle and reconnects are enabled it retries immediately with a fresh
+   * attempt budget, instead of waiting out the backoff a failed unauthorized
+   * attempt armed.
+   */
+  notifyAuthorized(): void
 }
 
 /**
@@ -122,9 +131,15 @@ export interface ConnectionHandle extends ServerContext {
  * @param ctx - Cordis context providing the `tools` registry and logger.
  * @param config - Resolved plugin config selecting the transport and server identity.
  * @param policy - Resolved reconnect policy from {@link resolveReconnectPolicy}.
+ * @param oauth - The server's OAuth provider, when `auth` is configured.
  * @returns Handle with a `ready` promise for startup-await and a `dispose` for teardown.
  */
-export function startConnection(ctx: Context, config: Config, policy: ResolvedReconnectPolicy): ConnectionHandle {
+export function startConnection(
+  ctx: Context,
+  config: Config,
+  policy: ResolvedReconnectPolicy,
+  oauth?: McpOAuthProvider,
+): ConnectionHandle {
   const label = `mcp-client(${config.serverName})`
   const incompleteDisposalMessage = `${label}: transport closure could not be confirmed during disposal — server shutdown may be incomplete`
   const opts: ToolBridgeOptions = {
@@ -238,7 +253,7 @@ export function startConnection(ctx: Context, config: Config, policy: ResolvedRe
     ctx.logger.warn(`${label}: ${action} in ${delayMs}ms (attempt ${failedAttempts}/${policy.maxAttempts})`)
     reconnectTimer = setTimeout(() => {
       reconnectTimer = undefined
-      settling = connectGeneration(false)
+      void launchAttempt(false)
     }, delayMs)
     // An armed reconnect timer must never hold the process open on its own.
     reconnectTimer.unref()
@@ -304,7 +319,7 @@ export function startConnection(ctx: Context, config: Config, policy: ResolvedRe
     }
     let instructions: string
     try {
-      transport = createTransport(config)
+      transport = createTransport(config, oauth)
       await generation.connect(transport)
       if (hasClosed()) {
         attemptSettled = true
@@ -324,8 +339,13 @@ export function startConnection(ctx: Context, config: Config, policy: ResolvedRe
     } catch (error) {
       if (firstAttemptError === undefined) firstAttemptError = error
       // Disposal clears current ownership before it closes the generation, so
-      // only a live supervisor reports an attempt failure.
-      if (isCurrent(generation)) ctx.logger.warn(`${label}: connection attempt failed: ${String(error)}`)
+      // only a live supervisor reports an attempt failure. An unauthorized
+      // OAuth server already carries its remedy in the error message; it is
+      // the one failure worth an error-level line every attempt.
+      if (isCurrent(generation)) {
+        if (error instanceof McpAuthRequiredError) ctx.logger.error(`${label}: ${error.message}`)
+        else ctx.logger.warn(`${label}: connection attempt failed: ${String(error)}`)
+      }
       const quiesced = await closeGeneration()
       attemptSettled = true
       settleFailedGeneration(generation, quiesced)
@@ -343,7 +363,29 @@ export function startConnection(ctx: Context, config: Config, policy: ResolvedRe
   }
 
   /** The in-flight (or last settled) connection attempt; dispose awaits it for quiescence. */
-  let settling = connectGeneration(true)
+  let settling: Promise<void> = Promise.resolve()
+  /** Whether a connection attempt is currently running between launch and settle. */
+  let attemptInFlight = false
+
+  /**
+   * Launch one connection attempt and track it as the in-flight attempt, so
+   * {@link ConnectionHandle.notifyAuthorized} knows an immediate retry would
+   * race an attempt that is still deciding.
+   */
+  function launchAttempt(startup: boolean): Promise<void> {
+    attemptInFlight = true
+    const attempt = connectGeneration(startup)
+    settling = attempt
+    // connectGeneration never rejects; the rejection arm is belt-only.
+    void attempt.then(
+      () => { attemptInFlight = false },
+      /* v8 ignore next -- connectGeneration contains every failure path */
+      () => { attemptInFlight = false },
+    )
+    return attempt
+  }
+
+  void launchAttempt(true)
 
   // The ready promise settles when the first attempt finishes (regardless of
   // success). If the first attempt fails and reconnect is enabled, the
@@ -363,6 +405,21 @@ export function startConnection(ctx: Context, config: Config, policy: ResolvedRe
   return {
     ready,
     instructions: () => serverInstructions,
+    notifyAuthorized(): void {
+      if (disposed || !policy.enabled) return
+      // A connected server or an attempt still deciding needs no nudge: the
+      // live attempt reads the fresh grant on its own next request.
+      if (client !== undefined || attemptInFlight) return
+      if (reconnectTimer !== undefined) {
+        clearTimeout(reconnectTimer)
+        reconnectTimer = undefined
+      }
+      // A fresh grant is a new outage's worth of reason to try: reset the
+      // budget so even a given-up server recovers without a reload.
+      failedAttempts = 0
+      ctx.logger.info(`${label}: authorization committed; reconnecting`)
+      void launchAttempt(false)
+    },
     resources: {
       async request(request, exec): Promise<JsonValue> {
         const generation = client

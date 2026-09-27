@@ -16,9 +16,12 @@
 import type { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import { scopeOf } from '@deepseek-ai/dsh-scope'
+import { isCredentialKeySegment } from '@deepseek-ai/dsh-credentials'
 import { MAX_TIMER_DELAY_MS } from '@deepseek-ai/dsh-timeout'
 import { DEFAULT_MAX_INSTRUCTION_BYTES, RECONNECT_DEFAULTS, resolveReconnectPolicy, startConnection } from './connection.ts'
 import type { ReconnectConfig } from './connection.ts'
+import { McpOAuthProvider, mcpOAuthRecordId, mcpOAuthRecordKey, registerMcpOAuthFlow } from './auth.ts'
+import type { McpOAuthOptions, OAuthAuthConfig } from './auth.ts'
 import { registerServerContext } from './server-context.ts'
 // Side-effect type import: declaration-merges `ctx.tools` onto Context.
 import type {} from '@deepseek-ai/dsh-tools'
@@ -45,6 +48,66 @@ const SERVER_NAME_PATTERN = /^[A-Za-z0-9_-]{1,32}$/
  * duplicates inside one Agent remain mutually exclusive.
  */
 const activeServerNames = new WeakMap<object, Set<string>>()
+
+/**
+ * Live OAuth grant-record ids per registration scope, mapped to the server
+ * name that claimed them. Server names are unique per scope by exact string,
+ * but the record grammar is lowercase — two configured names that fold onto
+ * one record id would silently share one grant, so the second fails at load.
+ */
+const activeOAuthRecordIds = new WeakMap<object, Map<string, string>>()
+
+/** The role-independent facts both OAuth providers for one server share. */
+type McpOAuthFacts = Omit<McpOAuthOptions, 'role'>
+
+/**
+ * Resolve one Streamable HTTP server's `auth` configuration into the shared
+ * facts its two OAuth providers are built from. This is the explicit resolve
+ * step for the auth seam: it fails THIS instance at load when the server name
+ * cannot address a credential record or when another live instance already
+ * owns the folded record id.
+ *
+ * @param ctx - plugin context, for the scope that owns the reservation.
+ * @param config - resolved streamable-http configuration.
+ * @returns the provider facts, or undefined without `auth`.
+ */
+function resolveOAuthOptions(ctx: Context, config: StreamableHttpConfig): McpOAuthFacts | undefined {
+  const { auth } = config
+  if (auth === undefined) return undefined
+  if (auth.scopes !== undefined) {
+    for (const scope of auth.scopes) {
+      if (scope.trim() === '') throw new Error(`mcp-client(${config.serverName}): auth.scopes entries must be non-empty`)
+    }
+  }
+  const recordId = mcpOAuthRecordId(config.serverName)
+  if (!isCredentialKeySegment(recordId)) {
+    throw new Error(
+      `mcp-client(${config.serverName}): auth oauth needs a serverName whose lowercase form addresses a credential`
+      + ' record — start the name with a letter and use only letters, digits, hyphens, and underscores',
+    )
+  }
+  const owner = scopeOf(ctx) ?? ctx.root
+  let claimed = activeOAuthRecordIds.get(owner)
+  if (claimed === undefined) {
+    claimed = new Map()
+    activeOAuthRecordIds.set(owner, claimed)
+  }
+  const holder = claimed.get(recordId)
+  if (holder !== undefined) {
+    throw new Error(
+      `mcp-client(${config.serverName}): serverName "${holder}" already addresses OAuth credential record`
+      + ` "${recordId}" — pick a serverName whose lowercase form is unique`,
+    )
+  }
+  claimed.set(recordId, config.serverName)
+  ctx.effect(() => () => { claimed.delete(recordId) }, 'mcp-client.oauthRecordId')
+  return {
+    serverName: config.serverName,
+    serverUrl: config.url,
+    auth,
+    key: mcpOAuthRecordKey(config.serverName),
+  }
+}
 
 // ---- Config ----
 
@@ -90,6 +153,12 @@ export interface StreamableHttpConfig {
   url: string
   /** Additional headers attached to MCP requests. */
   headers: Record<string, string>
+  /**
+   * OAuth authorization against the server's authorization server; omission
+   * sends only `headers`. Requires the credentials service; authorize the
+   * stored grant from a settings surface before the server accepts requests.
+   */
+  auth?: OAuthAuthConfig
   /** Timeout per tool call or resource request in milliseconds. */
   toolCallTimeoutMs: number
   /** Fail plugin activation when the initial connection or tool synchronization fails. */
@@ -116,6 +185,16 @@ const Reconnect: z<ReconnectConfig> = z.object({
   maxAttempts: z.number().step(1).min(1).max(Number.MAX_SAFE_INTEGER).default(RECONNECT_DEFAULTS.maxAttempts),
 })
 
+/** OAuth authorization options; every member except the kind is optional. */
+const OAuthAuth: z<OAuthAuthConfig> = z.object({
+  kind: z.const('oauth'),
+  scopes: z.array(z.string()),
+  clientName: z.string(),
+  clientId: z.string(),
+  clientSecret: z.string(),
+  callbackPort: z.number().step(1).min(1).max(65535),
+})
+
 export const Config = z.union([
   z.object({
     transport: z.const('stdio'),
@@ -134,6 +213,7 @@ export const Config = z.union([
     serverName: z.string().required().pattern(SERVER_NAME_PATTERN),
     url: z.string().required(),
     headers: z.dict(String).default({}),
+    auth: z.union([OAuthAuth, z.const(undefined)]),
     toolCallTimeoutMs: z.number().default(DEFAULT_TOOL_CALL_TIMEOUT_MS),
     failOnStartupError: z.boolean().default(false),
     maxInstructionBytes: z.number().step(1).min(1).default(DEFAULT_MAX_INSTRUCTION_BYTES),
@@ -178,8 +258,27 @@ export async function apply(ctx: Context, config: Config): Promise<void> {
   // The supervisor owns the client/transport generations, the reconnect
   // loop, and the live tool registrations; disposal stops reconnection,
   // quiesces in-flight work, and unregisters the current generation.
-  const connection = startConnection(ctx, config, reconnect)
+  const oauth = config.transport === 'streamable-http' ? resolveOAuthOptions(ctx, config) : undefined
+  const connection = startConnection(
+    ctx,
+    config,
+    reconnect,
+    oauth === undefined ? undefined : new McpOAuthProvider(ctx, { ...oauth, role: 'connection' }),
+  )
   registerServerContext(ctx, config.serverName, connection)
+  // OAuth sign-in is offered wherever a surface can run it: the flow exists
+  // from the moment an OAuth server is configured, while a composition
+  // without the authorization seam (headless, ACP) simply has no surface to
+  // sign in from — the connection still works once a grant is stored. The
+  // flow's provider is its own instance sharing only the record, so a
+  // reconnect attempt racing the sign-in cannot overwrite its staging.
+  if (oauth !== undefined) {
+    ctx.inject(['authorization'], (authorized) => {
+      registerMcpOAuthFlow(authorized, new McpOAuthProvider(authorized, { ...oauth, role: 'flow' }), {
+        onAuthorized: () => { connection.notifyAuthorized() },
+      })
+    })
+  }
   let stopping: Promise<void> | undefined
   const dispose = (): Promise<void> => stopping ??= connection.dispose()
   // Cordis announces unload before awaiting an unfinished apply(). Closing

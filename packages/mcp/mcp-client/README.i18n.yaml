@@ -9,8 +9,8 @@
   en: c3e635d210dd707e
   zh: bd749579307d6a2d
 /deepseek-ai-dsh-mcp-client/summary:
-  en: 428cc4078a9d5b53
-  zh: 49b867131f518c0f
+  en: c3b9e61d2c68daa7
+  zh: 15979568712899a3
 /deepseek-ai-dsh-mcp-client/table-of-contents:
   en: d152484eb41ac6b4
   zh: 09388d293f9be9cb
@@ -18,8 +18,11 @@
   en: e77871d58566601a
   zh: c5ef229d22eb3ebf
 /deepseek-ai-dsh-mcp-client/use-this-package/minimal-configuration:
-  en: 4d8b58f6a5e0c3f1
-  zh: 28e1c06aeef33131
+  en: 915041031f621424
+  zh: 2c8c8854cd5d57cd
+/deepseek-ai-dsh-mcp-client/use-this-package/oauth-authorization:
+  en: 559397ff26d83565
+  zh: 439833e3bc22dd4f
 /deepseek-ai-dsh-mcp-client/use-this-package/tool-naming-and-coexistence:
   en: 75ae9745d5b04796
   zh: 8ae5b8ca6e73296e
@@ -36,8 +39,8 @@
   en: 4e213d68082b07f0
   zh: 7617949ba46a3b63
 /deepseek-ai-dsh-mcp-client/understand-the-implementation/source-map:
-  en: ab2bbaa701f24c2c
-  zh: c6db79438239388e
+  en: 1623643ee2e38ffc
+  zh: 990602f56b858f93
 /deepseek-ai-dsh-mcp-client/understand-the-implementation/lifecycle-and-sync:
   en: ae9029b48b2a2e4e
   zh: 048f08361b799667

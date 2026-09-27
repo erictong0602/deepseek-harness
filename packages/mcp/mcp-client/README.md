@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-`dsh-mcp-client` lets the model use tools and resources from external Model Context Protocol (MCP) servers. Configure one server per entry; its tools use names such as `mcp__github__create_issue`. No server is enabled by default. Shipped profiles already provide [shared resource discovery and reading](../mcp-resources/README.md). An empty caller scope adds no MCP tools or prompt text. Server instructions join the logged system prompt as literal text; MCP prompt templates are unsupported. Slow or crashed servers can delay startup or fail calls until recovery.
+`dsh-mcp-client` lets the model use tools and resources from external Model Context Protocol (MCP) servers. Configure one server per entry; its tools use names such as `mcp__github__create_issue`. No server is enabled by default. Shipped profiles already provide [shared resource discovery and reading](../mcp-resources/README.md). An empty caller scope adds no MCP tools or prompt text. Server instructions join the logged system prompt as literal text; MCP prompt templates are unsupported. Slow or crashed servers can delay startup or fail calls until recovery. Streamable HTTP servers that demand a browser sign-in connect through [OAuth](#oauth-authorization) with a stored grant.
 
 ## Table of Contents
 
@@ -58,6 +58,7 @@ Add one entry per server; nothing else is required. After the harness starts, th
 | `serverName` | required | Namespace for the server's tool names; `[A-Za-z0-9_-]{1,32}`, unique inside one registration scope |
 | `command` / `args` / `env` / `cwd` | — | stdio: executable, arguments, extra env merged over scrubbed ambient env, working directory |
 | `url` / `headers` | — | streamable-http: endpoint URL and extra request headers |
+| `auth` | — | streamable-http: `oauth` authorization against the server's authorization server; see [OAuth authorization](#oauth-authorization) |
 | `toolCallTimeoutMs` | `60,000` | Timeout per `tools/call` or resource request |
 | `maxInstructionBytes` | `32,768` | Maximum UTF-8 bytes of server instructions including attribution; an oversized value rejects the connection |
 | `failOnStartupError` | `false` | Reject plugin activation when the initial connection or tool synchronization fails |
@@ -69,6 +70,24 @@ Add one entry per server; nothing else is required. After the harness starts, th
 The generated [configuration catalog](../../../docs/config-catalog.md#deepseek-aidsh-mcp-client) is the exhaustive source for every accepted field.
 
 After startup, the server's tools appear as `mcp__<serverName>__<tool>` — try a prompt that uses one. If the initial connection fails, the harness still starts but no tools from that server appear, and an error is logged. Setting `failOnStartupError: true` rejects plugin activation; [app-boot's startup policy](../../boot/app-boot/README.md) still permits an optional MCP entry to fail without aborting the harness.
+
+### OAuth authorization
+
+Streamable HTTP servers that require a browser sign-in use `auth: oauth`. One grant is stored per server under the `mcp-client/<serverName>` credential record: authorize it once from a settings surface and every composition on that host reuses it. The bridge follows the MCP authorization rules — protected-resource and authorization-server discovery, dynamic client registration (or a pre-registered `clientId`), the authorization-code flow with PKCE over a loopback redirect, and silent token refresh on later starts.
+
+```yaml
+- id: mcp-linear
+  name: '@deepseek-ai/dsh-mcp-client'
+  config:
+    serverName: linear
+    transport: streamable-http
+    url: https://mcp.linear.app/mcp
+    auth:
+      kind: oauth
+      scopes: ['issues:read', 'issues:write']
+```
+
+The sign-in flow notifies the authorization URL to the surface that started it and accepts a pasted callback URL when the browser cannot reach the host. A server that demands authorization before a grant exists fails its connection attempts with the action to take, and the next committed grant reconnects it — even a server whose reconnect budget was exhausted. Sign-in needs a composition with the authorization and credentials services; a headless composition offers no sign-in surface, but a grant stored by another composition on the same host still connects. `headers` still apply alongside the OAuth bearer token.
 
 ### Tool naming and coexistence
 
@@ -116,6 +135,7 @@ This section explains the design decisions behind the bridge and points at the c
 |---|---|
 | [`src/index.ts`](src/index.ts) | Plugin entry: `Config` schema, `serverName` reservation, activation await |
 | [`src/connection.ts`](src/connection.ts) | Connection supervisor: client generations, reconnect policy, attempt budget, disposal |
+| [`src/auth.ts`](src/auth.ts) | OAuth over one credential record: transport-role bearer reads and refresh, flow-role sign-in with a loopback redirect |
 | [`src/server-context.ts`](src/server-context.ts) | Resource-provider registration and literal server instructions |
 | [`src/tools.ts`](src/tools.ts) | Tool bridge: discovery, naming, registration swap, execution, image projection |
 | [`src/transport.ts`](src/transport.ts) | Transport factory: stdio spawn with scrubbed env, Streamable HTTP |

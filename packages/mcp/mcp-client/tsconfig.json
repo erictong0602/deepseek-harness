@@ -36,6 +36,12 @@
       "path": "../../util/http-proxy"
     },
     {
+      "path": "../../credentials/credentials"
+    },
+    {
+      "path": "../../credentials/authorization"
+    },
+    {
       "path": "../mcp-resources"
     },
     {
