@@ -9,7 +9,7 @@ kind: "package-reference"
 
 ## 概述
 
-当部署装有 [astria](https://github.com/Nodesify/astria)（一个把目录变成可查询知识图的工具）时，使用 `dsh-astria` 为 agent 提供仓库级图回答。它在加载时解析 astria 可执行文件，注册作用域唯一的 `ctx.codeGraph` 提供方，并通过 `ctx.subprocess` 每次完整运行一次 astria CLI 来回答六个操作。本包不安装 astria，也不构建图：部署方自行提供可执行文件并运行 `astria run .`（或 `astria watch .`）。
+当部署装有 [astria](https://github.com/Nodesify/astria)（一个把目录变成可查询知识图的工具）时，使用 `dsh-astria` 为 agent 提供仓库级图回答。它在加载时解析 astria 可执行文件（记录一次尽力而为的 `astria --version` 诊断），注册作用域唯一的 `ctx.codeGraph` 提供方，并通过 `ctx.subprocess` 每次完整运行一次 astria CLI 来回答六个操作 — 或以 `transport: server` 为每个工作区根目录骑乘一个池化的 `astria mcp` stdio 子进程。本包不安装 astria，也不构建图：部署方自行提供可执行文件并运行 `astria run .`（或交给工具与 `autoUpdate`）。
 
 ## 目录
 
@@ -46,6 +46,8 @@ kind: "package-reference"
 | `maxOutputBytes` | `1000000` | 每次查询收集 stdout 的内存上限；溢出保留尾部并将结果标记为截断 |
 | `maxStderrBytes` | `100000` | 退出失败中包含的 stderr 尾部上限 |
 | `killGraceMs` | `2000` | 取消或释放查询的终止宽限 |
+| `transport` | `cli` | `cli` 每次查询运行一个 astria 子进程；`server` 为每个工作区根目录保有一个池化的 `astria mcp` stdio 子进程并通过它回答查询（刷新始终一次性运行） |
+| `serverTimeoutMs` | `30000` | `server` 传输的 MCP 握手与单次调用预算 |
 | `autoUpdate.enabled` | `false` | 文件修改类工具成功后，启动一个由编辑 agent 拥有的防抖后台 `astria update` 任务，并在刷新完成的图落地时注入通知；需要组合任务注册表与工具运行时 |
 | `autoUpdate.debounceMs` | `3000` | 最后一次编辑之后、刷新任务启动之前的静默窗口 |
 | `autoUpdate.tools` | `write`、`edit`、`str_replace_editor` | 视为编辑的工具名称 |
@@ -70,7 +72,8 @@ kind: "package-reference"
 
 ### 设计要点
 
-- **每次查询一个完整子进程。** 没有进程池也没有协议状态：一次 CLI 崩溃只影响它那次查询，提供方在查询之间保持无状态。代价是每次查询一次进程派生。
+- **两种查询传输。** `cli` 每次查询运行一个完整子进程：没有进程池也没有协议状态，因此一次崩溃只影响它那次查询。`server` 为每个工作区根目录池化一个 `astria mcp` stdio 子进程（在子进程接缝的管道流上运行换行分隔的 JSON-RPC，`lsp-stdio` 形态）：死亡或超时的子进程在失败到达调用方之前被替换一次。刷新始终一次性运行 — MCP 服务器不提供构建工具。
+- **加载时版本诊断。** 激活时派生一次 `astria --version` 并记录该行；失败的探测只警告，从不阻断启动。
 - **执行世界配对。** 可执行文件通过 `ctx.subprocess` 解析和运行，因此把子进程提供方指向远程世界时，图查询随之迁移。
 - **有界收集与诚实的截断。** stdout 以 `maxOutputBytes` 收集并保留尾部；结果的 `truncated` 标志即收集读取器的 `lossy` 事实，因此消费者不会把尾部报告误当作完整报告。
 - **先归类中止再归类退出。** 被终止的子进程以信号退出事实结算 `done`；提供方先检查融合信号，因此调用方取消或释放以中止原因呈现，绝不会伪装成 astria 失败。
@@ -81,7 +84,9 @@ kind: "package-reference"
 |---|---|
 | [`src/index.ts`](src/index.ts) | 插件入口：配置 schema、加载时可执行文件解析、单提供方注册 |
 | [`src/args.ts`](src/args.ts) | 纯粹的接缝请求 → astria argv 映射 |
-| [`src/provider.ts`](src/provider.ts) | 一次性查询运行器：派生、收集、退出归类、释放静默 |
+| [`src/provider.ts`](src/provider.ts) | 一次性查询与刷新运行器：派生、收集、退出归类、释放静默 |
+| [`src/server.ts`](src/server.ts) | 池化 MCP 子进程：握手、按 id 关联的调用、到期退役、拆除 |
+| [`src/server-provider.ts`](src/server-provider.ts) | 传输选择：查询走服务器，刷新与释放走 CLI |
 
 </details>
 
@@ -111,11 +116,11 @@ kind: "package-reference"
 
 这些限制定义本提供方何时是糟糕的选择或需要特别的运维关注。它们是当前的包约束，不是任务积压。
 
-- **每次查询一次进程派生** — 每次查询（以及每次刷新）都付出 CLI 启动（包括打开 SQLite）；延迟敏感的部署应等待下方的常驻服务端变体。
+- **CLI 传输上每次查询一次进程派生** — 每次查询（以及两种传输上的每次刷新）都付出 CLI 启动（包括打开 SQLite）；延迟敏感的部署改用 `transport: server`，它为每个工作区根目录池化一个子进程，并在失败到达调用方之前替换一次死亡或超时的子进程。
 - **面向人类的 CLI 输出** — astria v1 没有机器可读的输出标志，因此结果是 CLI 按令牌预算生成的文本原样；上游提供 `--json` 表面后，接缝才能生长出结构化结果分支。
 - **没有约束策略** — 本包信任配置的可执行文件，不添加沙箱；受限部署必须提供合适的子进程提供方或同世界沙箱包装。
 - **自动更新只观察工具介导的编辑** — 监听器只对配置的工具名称（默认 `write`、`edit`、`str_replace_editor`）作出反应；shell 驱动的文件变更只有通过模型下一次显式刷新才会进入图。
-- **延后：常驻服务端提供方** — 以 `lsp-stdio` 的形态把 `astria mcp` 作为池化 stdio 进程运行可消除每次查询的派生开销；接缝无需为此变更。
+
 
 <a id="dev-note"></a>
 ### 开发备注

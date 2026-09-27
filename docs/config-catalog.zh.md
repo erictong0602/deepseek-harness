@@ -351,7 +351,7 @@ export interface Config {
 ## `@deepseek-ai/dsh-astria`
 
 - `inject`: `subprocess` · `codeGraph`
-- `source`: [`packages/codegraph/astria/src/index.ts:69`](../packages/codegraph/astria/src/index.ts)
+- `source`: [`packages/codegraph/astria/src/index.ts:81`](../packages/codegraph/astria/src/index.ts)
 
 ```ts config-catalog
 /** Plugin configuration: the astria executable, its host bounds, and post-edit refresh. */
@@ -368,6 +368,14 @@ export interface Config {
   maxStderrBytes?: number
   /** Termination grace for cancelled or disposed queries (ms). Default 2000. */
   killGraceMs?: number
+  /**
+   * Query transport: `cli` runs one astria child per query (default); `server` keeps one pooled
+   * `astria mcp` stdio child per workspace root and answers queries through it. Load rejects any
+   * other value.
+   */
+  transport?: string
+  /** MCP handshake and per-call budget for the `server` transport (ms). Default 30000. */
+  serverTimeoutMs?: number
   /** Debounced incremental refresh after file-mutating tools. Default disabled. */
   autoUpdate?: AutoUpdateConfig
 }

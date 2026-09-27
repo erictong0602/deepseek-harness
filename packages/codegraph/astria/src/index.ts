@@ -18,10 +18,15 @@ import type { ToolExecution } from '@deepseek-ai/dsh-tools'
 import { MAX_TIMER_DELAY_MS } from '@deepseek-ai/dsh-timeout'
 import { AstriaCliProvider } from './provider.ts'
 import type { AstriaProviderSpec, AstriaSpawner } from './provider.ts'
+import { AstriaServerProvider } from './server-provider.ts'
+import type { AstriaServerSpec } from './server.ts'
 
 export { buildAstriaArgs, buildAstriaRefreshArgs } from './args.ts'
 export { AstriaCliProvider } from './provider.ts'
 export type { AstriaProviderSpec, AstriaSpawner } from './provider.ts'
+export { AstriaServerProvider } from './server-provider.ts'
+export { AstriaMcpServer, mcpToolCall } from './server.ts'
+export type { AstriaServerSpec, McpToolCall } from './server.ts'
 
 /** This producer's job kind on `ctx.jobs` (background graph refreshes). */
 declare module '@deepseek-ai/dsh-jobs' {
@@ -51,6 +56,13 @@ const DEFAULT_MAX_OUTPUT_BYTES = 1_000_000
 const DEFAULT_MAX_STDERR_BYTES = 100_000
 const DEFAULT_KILL_GRACE_MS = 2_000
 const DEFAULT_AUTO_UPDATE_DEBOUNCE_MS = 3_000
+const DEFAULT_SERVER_TIMEOUT_MS = 30_000
+
+/**
+ * Internal best-effort bound for the load-time `astria --version` diagnostic; the probe never gates
+ * startup, so it is a fixed protocol-style constant rather than deployment configuration.
+ */
+const VERSION_PROBE_TIMEOUT_MS = 10_000
 
 /** File-mutating tool names that trigger a debounced incremental refresh. */
 export const DEFAULT_AUTO_UPDATE_TOOLS: readonly string[] = ['write', 'edit', 'str_replace_editor']
@@ -79,6 +91,14 @@ export interface Config {
   maxStderrBytes?: number
   /** Termination grace for cancelled or disposed queries (ms). Default 2000. */
   killGraceMs?: number
+  /**
+   * Query transport: `cli` runs one astria child per query (default); `server` keeps one pooled
+   * `astria mcp` stdio child per workspace root and answers queries through it. Load rejects any
+   * other value.
+   */
+  transport?: string
+  /** MCP handshake and per-call budget for the `server` transport (ms). Default 30000. */
+  serverTimeoutMs?: number
   /** Debounced incremental refresh after file-mutating tools. Default disabled. */
   autoUpdate?: AutoUpdateConfig
 }
@@ -96,6 +116,8 @@ export const Config: z<Config> = z.object({
   maxOutputBytes: z.number().default(DEFAULT_MAX_OUTPUT_BYTES),
   maxStderrBytes: z.number().default(DEFAULT_MAX_STDERR_BYTES),
   killGraceMs: z.number().max(MAX_TIMER_DELAY_MS).default(DEFAULT_KILL_GRACE_MS),
+  transport: z.string().default('cli'),
+  serverTimeoutMs: z.number().max(MAX_TIMER_DELAY_MS).default(DEFAULT_SERVER_TIMEOUT_MS),
   autoUpdate: AutoUpdateConfig.default({
     enabled: false,
     debounceMs: DEFAULT_AUTO_UPDATE_DEBOUNCE_MS,
@@ -104,7 +126,10 @@ export const Config: z<Config> = z.object({
 })
 
 /** One plugin config after schemastery fills every default. */
-type ResolvedConfig = Required<Omit<Config, 'autoUpdate'>> & { autoUpdate: Required<AutoUpdateConfig> }
+type ResolvedConfig = Required<Omit<Config, 'autoUpdate' | 'transport'>> & {
+  transport: 'cli' | 'server'
+  autoUpdate: Required<AutoUpdateConfig>
+}
 
 /**
  * Resolve the executable and register the sole provider. A missing or unresolvable command rejects
@@ -117,6 +142,10 @@ export async function apply(ctx: Context, config: Config): Promise<void> {
   assertPositiveInteger('maxOutputBytes', resolved.maxOutputBytes)
   assertPositiveInteger('maxStderrBytes', resolved.maxStderrBytes)
   assertTimer('killGraceMs', resolved.killGraceMs)
+  assertTimer('serverTimeoutMs', resolved.serverTimeoutMs)
+  if (resolved.transport !== 'cli' && resolved.transport !== 'server') {
+    throw new Error(`astria: transport must be "cli" or "server", got ${JSON.stringify(resolved.transport)}`)
+  }
 
   const setupAbort = new AbortController()
   const stopSetupCancellation = ctx.on('internal/plugin', (fiber) => {
@@ -144,7 +173,17 @@ export async function apply(ctx: Context, config: Config): Promise<void> {
     killGraceMs: resolved.killGraceMs,
   }
   const spawner: AstriaSpawner = spawnSpec => ctx.subprocess.spawn(spawnSpec)
-  const provider = new AstriaCliProvider(spec, spawner)
+  await probeVersion(ctx, spec)
+  const provider: Pick<AstriaCliProvider, 'id' | 'query' | 'refresh' | 'dispose'> = resolved.transport === 'server'
+    ? new AstriaServerProvider(new AstriaCliProvider(spec, spawner), {
+      executable,
+      args: resolved.args,
+      env: resolved.env,
+      callTimeoutMs: resolved.serverTimeoutMs,
+      killGraceMs: resolved.killGraceMs,
+      maxStderrBytes: resolved.maxStderrBytes,
+    } satisfies AstriaServerSpec, spawner)
+    : new AstriaCliProvider(spec, spawner)
 
   ctx.effect(() => {
     // Remove the provider before child teardown so no new query can enter a draining provider.
@@ -199,7 +238,7 @@ export async function apply(ctx: Context, config: Config): Promise<void> {
  */
 export function startUpdateJob(
   jobs: JobRegistry,
-  provider: AstriaCliProvider,
+  provider: Pick<AstriaCliProvider, 'refresh'>,
   root: string,
   agent: NonNullable<ToolExecution['agent']>,
 ): void {
@@ -221,6 +260,38 @@ export function startUpdateJob(
       },
     }),
   })
+}
+
+/**
+ * Log the installed astria's own version line once at load. Best effort: the executable already
+ * resolved, so a failed probe is a warning, never a gate on startup.
+ * @param ctx - the plugin context, for the subprocess seam and the logger.
+ * @param spec - the resolved provider spec (executable, env, grace).
+ */
+async function probeVersion(ctx: Context, spec: AstriaProviderSpec): Promise<void> {
+  try {
+    const handle = ctx.subprocess.spawn({
+      argv: [spec.executable, '--version'],
+      cwd: process.cwd(),
+      stdio: {
+        stdin: 'ignore',
+        stdout: { maxBytes: 4_096 },
+        stderr: { maxBytes: 4_096 },
+      },
+      graceMs: spec.killGraceMs,
+      signal: AbortSignal.timeout(VERSION_PROBE_TIMEOUT_MS),
+      env: spec.env,
+    })
+    const outcome = await handle.done
+    const text = handle.collected.stdout?.readFrom(0).text.trim() ?? ''
+    if (outcome.exitCode === 0 && text !== '') {
+      ctx.logger.info(`astria provider: ${text}`)
+    } else {
+      ctx.logger.warn(`astria: the --version probe failed (exit ${outcome.exitCode === null ? `signal ${outcome.signal}` : `code ${outcome.exitCode}`})`)
+    }
+  } catch (error) {
+    ctx.logger.warn(`astria: the --version probe failed: ${String(error)}`)
+  }
 }
 
 /** Reject a nonpositive or non-integer config value at load, so misconfiguration fails loud. */

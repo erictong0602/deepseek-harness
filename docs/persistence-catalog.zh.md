@@ -6131,7 +6131,7 @@ SHA-256: `0a30c3be336cdd4f8f34e66543a3d46d611c43986edd9b3ce6cbb9b721d3b5d3`
 
 SHA-256: `770b37b3bc0bd78074e7c5271c427e291338efd9f6ade2a55adbe35f83c84461`
 
-来源：[`packages/codegraph/astria/src/index.ts:40`](../packages/codegraph/astria/src/index.ts)
+来源：[`packages/codegraph/astria/src/index.ts:45`](../packages/codegraph/astria/src/index.ts)
 
 | 属性 | 存在性 | 类型 |
 |---|---|---|
