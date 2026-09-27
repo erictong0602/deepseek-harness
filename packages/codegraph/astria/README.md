@@ -25,7 +25,7 @@ Use `dsh-astria` to give agents repository-level graph answers from [astria](htt
 <a id="use-this-package"></a>
 ## Use this package
 
-Mount this provider when a deployment has the astria CLI and wants the harness to answer code-graph questions through it. It needs a subprocess provider for the same execution world, the `dsh-codegraph` seam and, for model access, `dsh-tool-codegraph`.
+Mount this provider when a deployment has the astria CLI and wants the harness to answer code-graph questions through it. It needs a subprocess provider for the same execution world, the `dsh-codegraph` seam and, for model access, `dsh-tool-codegraph`. Mount `dsh-skill-codegraph` beside the tool to add the bundled navigation skill, and `dsh-client-ui-codegraph` on Web deployments to render `code_graph` calls as a dedicated conversation row. None of these packages ships in a default dsh bundle — the [example overlay](../../../apps/cli/config/examples/codegraph-astria/astria.cordis.yml) is the whole opt-in composition, which also keeps the codegraph UI row a no-op on headless profiles.
 
 Install astria separately (`npm install -g @nodesify/astria`); the provider resolves the executable at every load, so an upgrade plus a harness restart picks up the new version, and a missing executable rejects activation loudly. The plugin has no `astria install` integration and never writes the CLI's configuration: composition stays on the harness side (patch layers, the [example overlay](../../../apps/cli/config/examples/codegraph-astria/astria.cordis.yml)).
 
@@ -38,6 +38,9 @@ Nothing is required: the defaults run `astria` resolved on the scrubbed PATH and
 - name: '@deepseek-ai/dsh-codegraph'
 - name: '@deepseek-ai/dsh-astria'
 - name: '@deepseek-ai/dsh-tool-codegraph'
+- name: '@deepseek-ai/dsh-skill-codegraph'
+# Web deployments: the dedicated code_graph conversation row (no-op on headless profiles).
+- name: '@deepseek-ai/dsh-client-ui-codegraph'
 ```
 
 | Field | Default | Meaning |

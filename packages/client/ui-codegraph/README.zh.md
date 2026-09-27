@@ -25,7 +25,7 @@ kind: "package-reference"
 <a id="use-this-package"></a>
 ## 使用本包
 
-把本浏览器插件与 Tool 会话层、remotes 组合挂载在一起；随附的 Web patch 已组合它。此后每个 `code_graph` 工具调用都通过专用行渲染，取代通用 Tool 行，并且导出结果获得打开操作。
+把本浏览器插件与 Tool 会话层、remotes 组合挂载在一起；由 astria [示例 overlay](../../../apps/cli/config/examples/codegraph-astria/astria.cordis.yml) 组合它，默认 dsh bundle 不包含它。此后每个 `code_graph` 工具调用都通过专用行渲染，取代通用 Tool 行，并且导出结果获得打开操作。
 
 ### 调用行
 

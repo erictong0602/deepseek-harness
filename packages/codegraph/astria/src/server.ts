@@ -269,7 +269,11 @@ export class AstriaMcpServer {
     }
   }
 
-  /** The transport ended: no further calls can be served or started. */
+  /**
+   * The transport ended: no further calls can be served or started. Pending calls reject with the
+   * teardown error; the caller owns the attached handler — every caller in this package awaits the
+   * call through the provider chain, so a rejection here is always delivered to a live reader.
+   */
   private onTransportClosed(): void {
     if (this.settled) {
       for (const waiter of this.pending.values()) {

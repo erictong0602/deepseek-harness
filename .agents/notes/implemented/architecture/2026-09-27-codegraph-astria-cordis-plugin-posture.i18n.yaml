@@ -1,0 +1,22 @@
+# Bilingual-pair consistency record for 2026-09-27-codegraph-astria-cordis-plugin-posture.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-09-27-codegraph-astria-cordis-plugin-posture.md
+/agent-note-the-codegraph-astria-family-is-a-composable-cordis-plugin-seam:
+  en: 68e12a999524ad57
+  zh: f4b4213aa750f045
+/agent-note-the-codegraph-astria-family-is-a-composable-cordis-plugin-seam/problem:
+  en: 3a8c20d24b2aa730
+  zh: ffb63a4dc4ef8f80
+/agent-note-the-codegraph-astria-family-is-a-composable-cordis-plugin-seam/decision:
+  en: 2c7555eda6d4c2a3
+  zh: 13c844f5ccda079a
+/agent-note-the-codegraph-astria-family-is-a-composable-cordis-plugin-seam/recorded-sessions:
+  en: 1de9c5bbb6b78fa6
+  zh: d77542f7474a39a3
+/agent-note-the-codegraph-astria-family-is-a-composable-cordis-plugin-seam/alternatives-considered:
+  en: c85ebe74329105b0
+  zh: b8eb3e156469c8d2
+/agent-note-the-codegraph-astria-family-is-a-composable-cordis-plugin-seam/consequences:
+  en: 4511957d49d04988
+  zh: 8bdeede328098418

@@ -25,7 +25,7 @@ English | [中文](README.zh.md)
 <a id="use-this-package"></a>
 ## Use this package
 
-Mount this browser plugin beside the Tool conversation layer and the remotes bundle; the shipped Web patch composes it. Every `code_graph` tool call then renders through the dedicated row instead of the generic Tool row, and export results gain their open action.
+Mount this browser plugin beside the Tool conversation layer and the remotes bundle; the astria [example overlay](../../../apps/cli/config/examples/codegraph-astria/astria.cordis.yml) composes it, and no default dsh bundle does. Every `code_graph` tool call then renders through the dedicated row instead of the generic Tool row, and export results gain their open action.
 
 ### The call row
 

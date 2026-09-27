@@ -196,9 +196,13 @@ export async function apply(ctx: Context, config: Config): Promise<void> {
   }
 
   const setupAbort = new AbortController()
+  // `internal/plugin` is a declared built-in Cordis event (a fiber's uid was cleared on disposal);
+  // it is the only mechanism to observe this plugin's own unload while `apply` still awaits the
+  // executable, because Cordis runs effect cleanup only after an async callback returns. Aborting
+  // here lets unload proceed without waiting for the pending activation. Resolution stays eager:
+  // moving it to the first query would trade the load-time "missing executable rejects activation"
+  // contract for a per-query surprise.
   const stopSetupCancellation = ctx.on('internal/plugin', (fiber) => {
-    // An async plugin callback must observe its own disposal before Cordis can
-    // run effect cleanup, because unload otherwise waits for this callback.
     if (fiber === ctx.fiber && fiber.uid === null) {
       setupAbort.abort(new Error('astria setup disposed'))
     }

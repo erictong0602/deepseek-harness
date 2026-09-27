@@ -342,11 +342,6 @@
     - id: ui-workflow-run
       name: '@deepseek-ai/dsh-client-ui-workflow-run'
 
-    # Code-graph tool row: the dedicated code_graph call card and the action
-    # that opens a settled export's viewable graph artifact in a new tab.
-    - id: ui-codegraph
-      name: '@deepseek-ai/dsh-client-ui-codegraph'
-
     # Input triggers: the '/' | '@' pipeline (ui-input-trigger), the command surface over
     # it (ui-commands), and the reference sources (ui-skill / ui-reference).
     - id: ui-input-trigger

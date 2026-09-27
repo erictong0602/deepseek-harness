@@ -168,12 +168,20 @@ describe('AstriaMcpServer', () => {
     })
     const server = await AstriaMcpServer.start(() => child.handle(), serverSpec, '/ws')
     const pending = server.call({ name: 'graph_stats', arguments: {} }, 'stats')
+    // Attach the rejection handler before the transport closes: a teardown rejection observed
+    // without a handler at that tick surfaces as an unhandled rejection, not as this call's error.
+    const settled = pending.then(
+      () => undefined,
+      (error: unknown) => error,
+    )
     await new Promise<void>((resolve) => {
       child.stdout.once('close', resolve)
       child.stdout.end()
     })
     await new Promise(resolve => setImmediate(resolve))
-    await expect(pending).rejects.toThrow(/exited unexpectedly|closed/)
+    expect(await settled).toEqual(expect.objectContaining({
+      message: expect.stringMatching(/exited unexpectedly|closed/),
+    }))
     expect(server.dead).toBe(true)
   })
 

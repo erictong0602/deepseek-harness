@@ -48,7 +48,7 @@ describe('parseAstriaStatus', () => {
 })
 
 describe('renderAstriaStatus', () => {
-  it('renders staleness, counts, provenance, and the extraction warning in order', () => {
+  it('renders staleness, counts, the built line, and the extraction warning in order', () => {
     const text = renderAstriaStatus({
       status: 'stale',
       ageMinutes: 45,
@@ -76,7 +76,7 @@ describe('renderAstriaStatus', () => {
     expect(renderAstriaStatus({ status: 'missing' })).toBe('Status: missing')
   })
 
-  it('omits the built line when provenance was never stamped', () => {
+  it('omits the built line when no build was ever stamped', () => {
     const text = renderAstriaStatus({ status: 'empty', nodes: 0, astriaVersion: null, builtAt: null })
     expect(text).toBe('Status: empty\nCounts: nodes 0')
   })

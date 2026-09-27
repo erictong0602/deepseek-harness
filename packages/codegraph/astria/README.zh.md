@@ -25,7 +25,7 @@ kind: "package-reference"
 <a id="use-this-package"></a>
 ## 使用本包
 
-当部署装有 astria CLI 并希望 harness 通过它回答代码图问题时挂载本提供方。它需要同一执行世界的子进程提供方、`dsh-codegraph` 接缝，以及模型访问所需的 `dsh-tool-codegraph`。
+当部署装有 astria CLI 并希望 harness 通过它回答代码图问题时挂载本提供方。它需要同一执行世界的子进程提供方、`dsh-codegraph` 接缝，以及模型访问所需的 `dsh-tool-codegraph`。在工具旁挂载 `dsh-skill-codegraph` 可添加内置的导航技能；在 Web 部署上挂载 `dsh-client-ui-codegraph` 可将 `code_graph` 调用渲染为专用的会话行。这些包都不会随 dsh 默认 bundle 发布——[示例 overlay](../../../apps/cli/config/examples/codegraph-astria/astria.cordis.yml) 就是完整的可选组合，它同时让 codegraph UI 行在无头配置中保持空操作。
 
 请单独安装 astria（`npm install -g @nodesify/astria`）；提供方在每次加载时解析可执行文件，因此升级后重启 harness 即可启用新版本，可执行文件缺失会响亮地拒绝激活。本插件不集成 `astria install`，也从不改写 CLI 的配置：组合始终发生在 harness 一侧（补丁层、[示例 overlay](../../../apps/cli/config/examples/codegraph-astria/astria.cordis.yml)）。
 
@@ -38,6 +38,9 @@ kind: "package-reference"
 - name: '@deepseek-ai/dsh-codegraph'
 - name: '@deepseek-ai/dsh-astria'
 - name: '@deepseek-ai/dsh-tool-codegraph'
+- name: '@deepseek-ai/dsh-skill-codegraph'
+# Web deployments: the dedicated code_graph conversation row (no-op on headless profiles).
+- name: '@deepseek-ai/dsh-client-ui-codegraph'
 ```
 
 | 字段 | 默认值 | 含义 |
