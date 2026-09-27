@@ -1,0 +1,46 @@
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write packages/skill/skill-codegraph/README.md
+/:
+  en: 8e1ff05cc8e70cd6
+  zh: 645c6d905292167a
+/deepseek-ai-dsh-skill-codegraph:
+  en: 6d3bffd982b90d03
+  zh: 4f67d9012e091567
+/deepseek-ai-dsh-skill-codegraph/summary:
+  en: 54d4584751cd4bad
+  zh: ab459feeddb72d6b
+/deepseek-ai-dsh-skill-codegraph/table-of-contents:
+  en: d152484eb41ac6b4
+  zh: 9f0336825ccdaacd
+/deepseek-ai-dsh-skill-codegraph/use-this-package:
+  en: bc11723fba8c1603
+  zh: e5c5608af94dc72f
+/deepseek-ai-dsh-skill-codegraph/understand-the-implementation:
+  en: d4974d77d848eb9f
+  zh: ba1919d9e37e38ce
+/deepseek-ai-dsh-skill-codegraph/further-exploration:
+  en: 42d5c984fa3f7bc4
+  zh: 0332263d8fb5fe0d
+/deepseek-ai-dsh-skill-codegraph/model-experience:
+  en: 215e7ba838619b7b
+  zh: a311da3843709f90
+/deepseek-ai-dsh-skill-codegraph/model-experience/skill-catalog-entry:
+  en: a861712b6b65f49a
+  zh: e99e8d5639c268d9
+/deepseek-ai-dsh-skill-codegraph/model-experience/skill-catalog-entry/what-the-model-sees:
+  en: 63b12afb6f18687f
+  zh: c5c307e93ea8c24d
+/deepseek-ai-dsh-skill-codegraph/model-experience/skill-catalog-entry/token-effect:
+  en: 43dfe3789c87f86b
+  zh: 8ed70f34f7e1ca3e
+/deepseek-ai-dsh-skill-codegraph/model-experience/skill-catalog-entry/kv-cache-effect:
+  en: 3a2d4e7bfe1b7e62
+  zh: 75668163eda7753a
+/deepseek-ai-dsh-skill-codegraph/known-limitations-and-deferred-work:
+  en: 0dfd4aeb847c308a
+  zh: be61f97292714013
+/deepseek-ai-dsh-skill-codegraph/known-limitations-and-deferred-work/dev-note:
+  en: e67f633dc6fe7773
+  zh: 19552bf86462c38f

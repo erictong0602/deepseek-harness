@@ -11673,6 +11673,15 @@ importers:
         specifier: workspace:*
         version: link:../skill
 
+  packages/skill/skill-codegraph:
+    devDependencies:
+      '@deepseek-ai/cordis':
+        specifier: workspace:~
+        version: link:../../../vendor/cordis
+      '@deepseek-ai/dsh-skill':
+        specifier: workspace:*
+        version: link:../skill
+
   packages/skill/skill-filesystem:
     dependencies:
       '@deepseek-ai/schemastery':

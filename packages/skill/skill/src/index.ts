@@ -27,6 +27,9 @@ const RUNTIME_RANK = 250
 /** Standard precedence rank for packaged skill providers and local bundled roots. */
 export const BUNDLED_SKILL_RANK = 600
 
+export { createBundledSkillProvider } from './bundled.ts'
+export type { BundledSkillOptions } from './bundled.ts'
+
 /**
  * Return whether a string is a valid kebab-case skill name.
  * @param name - candidate skill name to validate.
