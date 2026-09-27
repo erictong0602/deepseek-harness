@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-`dsh-tool-codegraph` lets a model ask repository-level questions and rebuild the graph through one tool: ten query operations (repo map, natural-language query, symbol explanation, shortest path, blast radius, graph statistics, viewable-artifact export, hub nodes, communities, freshness status) and two refresh operations (`build`, `update`). Refreshes run as `ctx.jobs` background jobs when a registry and an owning agent exist and foreground otherwise. Arguments are validated per operation, results are capped in complete rendered characters, and the provider's token budget derives from that cap. The package requires a registered `ctx.codeGraph` provider and a session workspace root; choose it for repository-level structure, not ordinary navigation.
+`dsh-tool-codegraph` lets a model ask repository-level questions and rebuild the graph through one tool: ten query and two refresh operations (`build`, `update`). Refreshes run as `ctx.jobs` background jobs when a registry and owning agent exist, else foreground. Arguments are validated per operation, results are capped in complete rendered characters, and the provider's token budget derives from that cap. The package requires a registered `ctx.codeGraph` provider and a session workspace root; choose it for repository-level structure, not ordinary navigation. No runtime invariant companion is published; per-operation validation, character capping, and background-job placement are asserted by its test suite against stateless calls.
 
 ## Table of Contents
 

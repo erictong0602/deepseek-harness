@@ -12,7 +12,7 @@ import { CODEGRAPH_PROMPT_TEXT, CODEGRAPH_TOOL_OPERATIONS, DEFAULT_CODEGRAPH_TOO
 /** A scripted provider recording queries and refreshes; `respond` yields the result or throws. */
 function stubProvider(
   respond: (request: CodeGraphQueryRequest) => CodeGraphResult,
-  refreshRespond: (request: CodeGraphRefreshRequest, signal?: AbortSignal) => CodeGraphResult = () => ({ kind: 'text', text: 'graph built', truncated: false }),
+  refreshRespond: (request: CodeGraphRefreshRequest, signal?: AbortSignal) => CodeGraphResult | Promise<CodeGraphResult> = () => ({ kind: 'text', text: 'graph built', truncated: false }),
 ): CodeGraphProvider & { seen: CodeGraphQueryRequest[]; refreshes: CodeGraphRefreshRequest[] } {
   const seen: CodeGraphQueryRequest[] = []
   const refreshes: CodeGraphRefreshRequest[] = []
@@ -357,9 +357,9 @@ describe('tool-codegraph execution', () => {
   it('maps a cancelled background refresh to a killed job outcome', async () => {
     const provider = stubProvider(
       () => okResult,
-      (_request, signal) => new Promise((_resolve, reject) => {
+      (_request, signal) => new Promise<CodeGraphResult>((_resolve, reject) => {
         signal?.addEventListener('abort', () => { reject(new Error('aborted')) })
-      }) as unknown as CodeGraphResult,
+      }),
     )
     const { ctx, jobs } = await mountWithJobs(provider)
     const { executed } = (() => {
@@ -396,9 +396,9 @@ describe('tool-codegraph execution', () => {
   it('treats a reason-less job cancellation as a plain kill', async () => {
     const provider = stubProvider(
       () => okResult,
-      (_request, signal) => new Promise((_resolve, reject) => {
+      (_request, signal) => new Promise<CodeGraphResult>((_resolve, reject) => {
         signal?.addEventListener('abort', () => { reject(new Error('aborted')) })
-      }) as unknown as CodeGraphResult,
+      }),
     )
     const { ctx, jobs } = await mountWithJobs(provider)
     await call(ctx, { operation: 'build' })

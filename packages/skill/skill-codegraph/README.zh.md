@@ -9,7 +9,7 @@ kind: "package-reference"
 
 ## 概述
 
-`dsh-skill-codegraph` 内置一个技能 `code-graph`，教 agent 通过 astria 知识图导航仓库：用于定向的仓库图、自然语言架构查询、风险编辑前的影响范围检查，以及深度结果的游标续读。该指引经会话技能目录按需加载，而不是常驻消耗提示词令牌，并明确说明何时应改用 `search`/`read` 与 `lsp`。与 `dsh-tool-codegraph` 一同挂载；技能文本假设 `code_graph` 工具可用，且从不替代它。
+`dsh-skill-codegraph` 内置一个技能 `code-graph`，教 agent 通过 astria 知识图导航仓库：用于定向的仓库图、自然语言架构查询、风险编辑前的影响范围检查，以及深度结果的游标续读。该指引经会话技能目录按需加载，而不是常驻消耗提示词令牌，并明确说明何时应改用 `search`/`read` 与 `lsp`。与 `dsh-tool-codegraph` 一同挂载；技能文本假设 `code_graph` 工具可用，且从不替代它。未发布运行时不变量配套包的说明：内置技能没有可能与打包资产分叉的运行时观测。
 
 ## 目录
 

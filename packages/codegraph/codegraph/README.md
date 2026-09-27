@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-`dsh-codegraph` defines the code-graph capability seam: one scope holds at most one provider, queries are ten normalized read-only operations (`repoMap`, `query`, `explain`, `path`, `affected`, `stats`, `export`, `hubs`, `communities`, `status`), and every result is bounded text with an explicit truncation fact — `export` additionally writes a viewable graph artifact at a caller-owned destination. Use it when composing a code-graph backend or a consumer; use [`dsh-astria`](../astria/README.md) for the reference provider and [`dsh-tool-codegraph`](../tool-codegraph/README.md) for the model-facing tool. Symbol-level navigation belongs to `ctx.lsp`, not this seam.
+`dsh-codegraph` defines the code-graph capability seam: one scope holds at most one provider, queries are ten normalized read-only operations with bounded text results and an explicit truncation fact, and `export` additionally writes a viewable graph artifact at a caller-owned destination. Use it when composing a code-graph backend or a consumer; use [`dsh-astria`](../astria/README.md) for the reference provider and [`dsh-tool-codegraph`](../tool-codegraph/README.md) for the model-facing tool. Symbol-level navigation belongs to `ctx.lsp`, not this seam. No runtime invariant companion is published; the sole-provider slot and error taxonomy are enforced by the Service contract and its tests.
 
 ## Table of Contents
 

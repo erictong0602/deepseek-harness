@@ -9,7 +9,7 @@ kind: "package-reference"
 
 ## 概述
 
-当部署装有 [astria](https://github.com/Nodesify/astria)（一个把目录变成可查询知识图的工具）时，使用 `dsh-astria` 为 agent 提供仓库级图回答。它在加载时解析 astria 可执行文件（记录一次尽力而为的 `astria --version` 诊断），注册作用域唯一的 `ctx.codeGraph` 提供方，并通过 `ctx.subprocess` 每次完整运行一次 astria CLI 来回答十个操作 — 或以 `transport: server` 为每个工作区根目录骑乘一个池化的 `astria mcp` stdio 子进程。本包从不安装或升级 astria，也不运行任何包管理器：部署方自行安装 CLI，图的构建是工具操作（`build`/`update`）或自动进行（默认启用的 `autoUpdate`、缺失图回退）。
+当部署装有 [astria](https://github.com/Nodesify/astria)（一个把目录变成可查询知识图的工具）时，使用 `dsh-astria` 为 agent 提供仓库级图回答。它在加载时解析 astria 可执行文件（记录一次尽力而为的 `astria --version`），注册作用域唯一的 `ctx.codeGraph` 提供方，并通过 `ctx.subprocess` 每次完整运行一次 astria CLI 来回答十个操作 — 或以 `transport: server` 骑乘一个池化的 `astria mcp` 子进程。本包从不安装或升级 astria，也不运行任何包管理器；图的构建是工具操作或自动进行（默认启用的 `autoUpdate`）。未发布运行时不变量配套包的说明：其退出、新鲜度与生命周期事实由测试套件断言。
 
 ## 目录
 

@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-`dsh-client-ui-codegraph` renders every `code_graph` call in the conversation as a dedicated expandable row, and a settled export adds the action that matters: one click loads the graph view artifact (the interactive HTML page or static SVG `astria export` wrote) through the session-authorized workspace-files remote and opens it in a new browser tab. The Client ships no graph renderer — the browser renders astria's own self-contained artifact.
+`dsh-client-ui-codegraph` renders every `code_graph` call in the conversation as a dedicated expandable row, and a settled export adds the action that matters: one click loads the graph view artifact (the interactive HTML page or static SVG `astria export` wrote) through the session-authorized workspace-files remote and opens it in a new browser tab. The Client ships no graph renderer — the browser renders astria's own self-contained artifact. No runtime invariant companion is published; the row renders frozen call slices and owns no diverging runtime observations.
 
 ## Table of Contents
 

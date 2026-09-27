@@ -2,7 +2,7 @@
 import { useState } from 'react'
 import { DisclosureRow, IconBranchOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
-import { resultText, type ToolCallViewProps } from '@deepseek-ai/dsh-client-ui-tool/client'
+import type { ToolCallViewProps } from '@deepseek-ai/dsh-client-ui-tool/client'
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import css from './CodeGraphRow.module.css'
 import type { NS } from './locales.ts'
@@ -58,9 +58,22 @@ function subjectOf(argsRaw: string, callId: string): string {
   return focus === undefined ? operation : `${operation} ${firstLine(focus)}`
 }
 
-/** Flatten one settled result block under the generic Tool-row text contract (ui-tool's resultText). */
+/**
+ * Flatten one settled result block under the generic Tool-row text contract,
+ * mirroring ui-tool's resultText locally so this browser bundle stays
+ * type-only over the sibling feature package (text blocks verbatim, other
+ * block shapes as pretty JSON, empty content falls back to the error line).
+ */
 function settledResultText(block: Exclude<ToolCallViewProps['block'], { phase: 'preparing' | 'start' }>): string | null {
-  return resultText(block) || null
+  const parts: string[] = []
+  for (const part of block.content) {
+    if (part.type === 'text') parts.push(part.text)
+    else parts.push(JSON.stringify(part, null, 2))
+  }
+  if (parts.length === 0 && block.error !== undefined) {
+    parts.push(`${block.error.name}: ${block.error.code}`)
+  }
+  return parts.join('\n') || null
 }
 
 /** Narrow opaque persisted `meta` to the export facts the action button needs. */

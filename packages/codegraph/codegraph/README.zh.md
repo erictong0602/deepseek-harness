@@ -9,7 +9,7 @@ kind: "package-reference"
 
 ## 概述
 
-`dsh-codegraph` 定义代码图能力接缝：一个作用域至多持有一个提供方，查询是十个归一化只读操作（`repoMap`、`query`、`explain`、`path`、`affected`、`stats`、`export`、`hubs`、`communities`、`status`），每个结果都是带显式截断事实的有界文本 — `export` 额外把可查看的图工件写入调用方持有的目的地。组合代码图后端或消费者时使用本包；参考提供方见 [`dsh-astria`](../astria/README.zh.md)，模型可见工具见 [`dsh-tool-codegraph`](../tool-codegraph/README.zh.md)。符号级导航属于 `ctx.lsp`，不属于本接缝。
+`dsh-codegraph` 定义代码图能力接缝：一个作用域至多持有一个提供方，查询是十个归一化只读操作，结果是有界文本并带显式截断事实，`export` 额外把可查看的图工件写入调用方持有的目的地。组合代码图后端或消费者时使用本包；参考提供方见 [`dsh-astria`](../astria/README.zh.md)，模型可见工具见 [`dsh-tool-codegraph`](../tool-codegraph/README.zh.md)。符号级导航属于 `ctx.lsp`，不属于本接缝。未发布运行时不变量配套包的说明：唯一提供方槽位与错误分类由 Service 契约及其测试强制执行。
 
 ## 目录
 

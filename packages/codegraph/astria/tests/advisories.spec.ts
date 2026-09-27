@@ -179,7 +179,7 @@ describe('injectOrientation', () => {
     inject: (notice: unknown) => { notices.push(notice) },
   }
   const agents = { get: (id: string) => (id === 'session-1' ? agent : undefined) }
-  const ctx = { get: (name: string) => (name === 'agents' ? agents : undefined) } as unknown as Context
+  const ctx = { get: (name: string) => (name === 'agents' ? agents : undefined) } as never
 
   it('injects the budgeted repo map for the session live agent', async () => {
     await injectOrientation(ctx, { query }, 'session-1' as never, '/ws', 750)

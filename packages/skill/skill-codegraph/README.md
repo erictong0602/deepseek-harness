@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-`dsh-skill-codegraph` bundles one skill, `code-graph`, that teaches an agent to navigate a repository through its astria knowledge graph: repo maps for orientation, natural-language architecture queries, blast-radius checks before risky edits, and cursor paging for deep results. The guidance loads on demand through the session skill catalog instead of spending standing prompt tokens, and it names when to prefer `search`/`read` and `lsp` instead. Mount it beside `dsh-tool-codegraph`; the skill text assumes the `code_graph` tool is available and never replaces it.
+`dsh-skill-codegraph` bundles one skill, `code-graph`, that teaches an agent to navigate a repository through its astria knowledge graph: repo maps for orientation, natural-language architecture queries, blast-radius checks before risky edits, and cursor paging for deep results. The guidance loads on demand through the session skill catalog instead of spending standing prompt tokens, and it names when to prefer `search`/`read` and `lsp` instead. Mount it beside `dsh-tool-codegraph`; the skill text assumes the `code_graph` tool is available and never replaces it. No runtime invariant companion is published; the bundled skill owns no runtime observations that could diverge from its packaged asset.
 
 ## Table of Contents
 

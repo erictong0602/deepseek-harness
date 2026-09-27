@@ -76,7 +76,7 @@ function fakeRegistry(): RecordingRegistry {
       return 'codegraph-1' as JobId
     },
   }
-  return registry as unknown as RecordingRegistry
+  return registry as never
 }
 
 /** The handle the registry hands one producer. */
@@ -96,7 +96,7 @@ function fakeAgent(options: { injectThrows?: boolean } = {}): RecordingAgent {
       if (options.injectThrows) throw new Error('agent disposed')
       notices.push(notice)
     },
-  } as unknown as RecordingAgent
+  } as never
 }
 
 describe('startUpdateJob', () => {
@@ -156,7 +156,7 @@ describe('startUpdateJob', () => {
     const registry = fakeRegistry()
     const provider = {
       refresh: () => Promise.reject('disk full'),
-    } as unknown as Astria.AstriaCliProvider
+    } as never
     const agent = fakeAgent()
     Astria.startUpdateJob(registry, provider, '/ws', agent)
     const hooks = registry.specs[0]!.run(jobFace()) as JobHooks

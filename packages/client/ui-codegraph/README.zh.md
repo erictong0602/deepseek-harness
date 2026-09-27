@@ -9,7 +9,7 @@ kind: "package-reference"
 
 ## 概述
 
-`dsh-client-ui-codegraph` 把会话中的每个 `code_graph` 调用渲染为一条专用的可展开行，并且一次完成的导出会附带真正有用的操作：点击即通过会话授权的 workspace-files 远程加载图视图工件（`astria export` 写出的交互式 HTML 页面或静态 SVG），并在新的浏览器标签页中打开。客户端不内置图渲染器 — 由浏览器渲染 astria 自己的自包含工件。
+`dsh-client-ui-codegraph` 把会话中的每个 `code_graph` 调用渲染为一条专用的可展开行，并且一次完成的导出会附带真正有用的操作：点击即通过会话授权的 workspace-files 远程加载图视图工件（`astria export` 写出的交互式 HTML 页面或静态 SVG），并在新的浏览器标签页中打开。客户端不内置图渲染器 — 由浏览器渲染 astria 自己的自包含工件。未发布运行时不变量配套包的说明：该行渲染冻结的调用切片，没有会分叉的运行时观测。
 
 ## 目录
 

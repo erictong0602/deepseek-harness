@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-Use `dsh-astria` to give agents repository-level graph answers from [astria](https://github.com/Nodesify/astria), a tool that turns a folder into a queryable knowledge graph. It resolves the astria executable at load (logging one best-effort `astria --version` diagnostic), registers the scope's sole `ctx.codeGraph` provider, and answers the ten operations one-shot through `ctx.subprocess` or — with `transport: server` — through one pooled `astria mcp` child per workspace root. The package never installs or upgrades astria and runs no package manager: deployments install the CLI themselves, and graph builds are tool operations (`build`/`update`) or automatic (`autoUpdate`, on by default, and the missing-graph fallback).
+Use `dsh-astria` to give agents repository-level graph answers from [astria](https://github.com/Nodesify/astria), a tool that turns a folder into a queryable knowledge graph. It resolves the astria executable at load (logging a best-effort `astria --version`), registers the scope's sole `ctx.codeGraph` provider, and answers the ten operations one-shot through `ctx.subprocess` or — with `transport: server` — through one pooled `astria mcp` child. The package never installs or upgrades astria and runs no package manager; graph builds are tool operations or automatic (`autoUpdate`, on by default). No runtime invariant companion is published; its exit, freshness, and lifecycle facts are asserted by its test suite.
 
 ## Table of Contents
 

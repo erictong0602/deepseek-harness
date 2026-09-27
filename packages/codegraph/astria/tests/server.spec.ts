@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest'
 import type { CodeGraphQueryRequest } from '@deepseek-ai/dsh-codegraph'
 import { AstriaMcpServer, mcpToolCall } from '@deepseek-ai/dsh-astria'
 import type { AstriaServerSpec, McpServedQuery } from '@deepseek-ai/dsh-astria'
-import { Writable } from 'node:stream'
 import { FakeMcpChild } from './helpers.ts'
 
 const serverSpec: AstriaServerSpec = {
@@ -217,7 +216,7 @@ describe('AstriaMcpServer', () => {
       stdin: {
         write() { throw new Error('stdin closed') },
         end() {}, // inert
-      } as unknown as Writable,
+      } as never,
     }
     await expect(AstriaMcpServer.start(() => broken, serverSpec, '/ws')).rejects.toThrow()
   })
