@@ -9,7 +9,7 @@ kind: "package-reference"
 
 ## 概述
 
-当部署装有 [astria](https://github.com/Nodesify/astria)（一个把目录变成可查询知识图的工具）时，使用 `dsh-astria` 为 agent 提供仓库级图回答。它在加载时解析 astria 可执行文件（记录一次尽力而为的 `astria --version` 诊断），注册作用域唯一的 `ctx.codeGraph` 提供方，并通过 `ctx.subprocess` 每次完整运行一次 astria CLI 来回答六个操作 — 或以 `transport: server` 为每个工作区根目录骑乘一个池化的 `astria mcp` stdio 子进程。本包不安装 astria，也不构建图：部署方自行提供可执行文件并运行 `astria run .`（或交给工具与 `autoUpdate`）。
+当部署装有 [astria](https://github.com/Nodesify/astria)（一个把目录变成可查询知识图的工具）时，使用 `dsh-astria` 为 agent 提供仓库级图回答。它在加载时解析 astria 可执行文件（记录一次尽力而为的 `astria --version` 诊断），注册作用域唯一的 `ctx.codeGraph` 提供方，并通过 `ctx.subprocess` 每次完整运行一次 astria CLI 来回答六个操作 — 或以 `transport: server` 为每个工作区根目录骑乘一个池化的 `astria mcp` stdio 子进程。本包从不安装或升级 astria，也不运行任何包管理器：部署方自行安装 CLI，图的构建是工具操作（`build`/`update`）或自动进行（`autoUpdate`、缺失图回退）。
 
 ## 目录
 
@@ -26,6 +26,8 @@ kind: "package-reference"
 ## 使用本包
 
 当部署装有 astria CLI 并希望 harness 通过它回答代码图问题时挂载本提供方。它需要同一执行世界的子进程提供方、`dsh-codegraph` 接缝，以及模型访问所需的 `dsh-tool-codegraph`。
+
+请单独安装 astria（`npm install -g @nodesify/astria`）；提供方在每次加载时解析可执行文件，因此升级后重启 harness 即可启用新版本，可执行文件缺失会响亮地拒绝激活。本插件不集成 `astria install`，也从不改写 CLI 的配置：组合始终发生在 harness 一侧（补丁层、[示例 overlay](../../../apps/cli/config/examples/codegraph-astria/astria.cordis.yml)）。
 
 ### 最小配置
 
@@ -142,5 +144,6 @@ kind: "package-reference"
 本开发备忘是面向维护者的工作上下文：尚未决定的开放设计问题与方向。它明确不具权威性 — 已交付的行为、限制与接受的依据保存在上方章节、包代码与链接的 Agent Note 中。
 
 - astria 发布节奏很快；本提供方只依赖六个已文档化的子命令与标志，上游的破坏性变更会以携带 CLI 自身消息的 `CODEGRAPH_EXIT` 呈现，而不是无声的错误行为。
+- 集成所依赖的上游表面刻意很窄：六个子命令及其标志、"No graph found" stderr 行，以及（server 传输）MCP 工具 schema。能让集成更进一步的上游增强 — 面向结构化结果的机器可读输出（`--json`）、`god_nodes`/`list_communities`/`get_neighbors` 的 CLI 对等、面向真正新鲜度探针的图构建元数据 — 是期望而非前提；没有任何一项阻塞今天的交付。为 dsh 提供 `astria install` 平台目标的方案经权衡后放弃：组合属于 harness 自身的分层。
 
 </details>

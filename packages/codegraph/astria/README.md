@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-Use `dsh-astria` to give agents repository-level graph answers from [astria](https://github.com/Nodesify/astria), a tool that turns a folder into a queryable knowledge graph. It resolves the astria executable at load, registers the scope's sole `ctx.codeGraph` provider, and answers each of the six operations by running the astria CLI once through `ctx.subprocess`. The package does not install astria or build graphs: deployments supply the executable and run `astria run .` (or `astria watch .`) themselves.
+Use `dsh-astria` to give agents repository-level graph answers from [astria](https://github.com/Nodesify/astria), a tool that turns a folder into a queryable knowledge graph. It resolves the astria executable at load (logging one best-effort `astria --version` diagnostic), registers the scope's sole `ctx.codeGraph` provider, and answers the six operations one-shot through `ctx.subprocess` or — with `transport: server` — through one pooled `astria mcp` child per workspace root. The package never installs or upgrades astria and runs no package manager: deployments install the CLI themselves, and graph builds are tool operations (`build`/`update`) or automatic (`autoUpdate`, the missing-graph fallback).
 
 ## Table of Contents
 
@@ -26,6 +26,8 @@ Use `dsh-astria` to give agents repository-level graph answers from [astria](htt
 ## Use this package
 
 Mount this provider when a deployment has the astria CLI and wants the harness to answer code-graph questions through it. It needs a subprocess provider for the same execution world, the `dsh-codegraph` seam and, for model access, `dsh-tool-codegraph`.
+
+Install astria separately (`npm install -g @nodesify/astria`); the provider resolves the executable at every load, so an upgrade plus a harness restart picks up the new version, and a missing executable rejects activation loudly. The plugin has no `astria install` integration and never writes the CLI's configuration: composition stays on the harness side (patch layers, the [example overlay](../../../apps/cli/config/examples/codegraph-astria/astria.cordis.yml)).
 
 ### Minimal configuration
 
@@ -142,5 +144,6 @@ These limits define when the provider is a poor fit or needs special operational
 This Dev Note is working context for maintainers: open design questions and directions that are not decided. It is explicitly non-authoritative — shipped behavior, limits, and accepted rationale live in the sections above, the package code, and the linked Agent Notes.
 
 - astria releases quickly; the provider depends only on the six documented subcommands and flags, and a breaking upstream change surfaces as `CODEGRAPH_EXIT` with the CLI's own message rather than silent misbehavior.
+- The upstream surface the integration rides is deliberately narrow: the six subcommands and their flags, the "No graph found" stderr line, and (server transport) the MCP tool schemas. Upstream additions that would grow the integration — machine-readable output (`--json`) for structured results, CLI parity for `god_nodes`/`list_communities`/`get_neighbors`, and graph-builder metadata for a true freshness probe — are wanted, not assumed; none blocks what ships today. An `astria install` platform target for dsh was considered and dropped: composition belongs to the harness's own layering.
 
 </details>
