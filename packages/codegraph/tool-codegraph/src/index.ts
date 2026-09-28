@@ -101,7 +101,7 @@ export function apply(ctx: Context, config: Config): void {
   ctx.tools.register(defineTool({
     name: 'code_graph',
     description:
-      'Query the repository code graph. operation is one of repoMap, query, explain, path, affected, stats, export, hubs, communities, status, build, update. question is search terms for query; node is a symbol label or id for explain and affected; source and target are node labels for path. depth limits traversal hops; directed follows only caller-to-callee edges; cursor continues a truncated query from its shown token. export writes a viewable graph artifact (format html or svg) and reports its path for the user to open; hubs lists the highest-degree hub nodes; communities lists detected communities; status reports graph freshness, build time, and tool versions. build and update rebuild the workspace graph as a background job and return the job id.',
+      'Query the repository code graph. operation is one of repoMap, query, explain, path, affected, stats, export, hubs, communities, status, build, update. question is search terms for query; node is a symbol label or id for explain and affected; source and target are node labels for path. depth limits traversal hops; directed follows only caller-to-callee edges; cursor continues a truncated query from its shown token. export writes a viewable graph artifact (format html or svg) and reports its path for the user to open; hubs lists the highest-degree hub nodes; communities lists detected communities; status reports graph freshness, build time, tool versions, and the configured extraction backend. build and update rebuild the workspace graph as a background job and return the job id.',
     parameters: {
       operation: {
         type: 'string',

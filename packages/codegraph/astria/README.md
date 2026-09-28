@@ -53,6 +53,22 @@ Nothing is required: the defaults run `astria` resolved on the scrubbed PATH and
 | `killGraceMs` | `2000` | Termination grace for cancelled or disposed queries |
 | `transport` | `cli` | `cli` runs one astria child per query; `server` keeps one pooled `astria mcp` stdio child per workspace root and answers queries through it (refresh always runs one-shot) |
 | `serverTimeoutMs` | `30000` | MCP handshake and per-call budget for the `server` transport |
+| `backend` | `plain` | Semantic-extraction engine for build/update runs: `plain` (structural, no LLM), `claude`, `openai` (any OpenAI-compatible endpoint), or `gemini`; astria ≥ 1.0.7 |
+| `model` | — | Backend-specific model name passed as `--model` |
+| `apiKey` | — | Engine API key forwarded as `ASTRIA_LLM_API_KEY`; the scrubbed ambient env drops KEY-named vars |
+| `baseUrl` | — | OpenAI-compatible endpoint forwarded as `ASTRIA_LLM_BASE_URL`; openai backend only |
+| `tokenBudget` | — | Total LLM token budget per run (`ASTRIA_LLM_BUDGET`); 0 means unlimited |
+| `embed` | `false` | Local embedding pass (`--embed`): `similar_to` edges and semantic query recall, no backend needed |
+| `labelCommunities` | `false` | Thematic community naming (`--label-communities`), one call per changed community; requires a backend |
+| `deep` | `false` | Cross-file concept-link tier (`--deep`), one call per changed file; requires a backend |
+| `judge.apiKey` | — | Judge API key forwarded as `ASTRIA_LLM_JUDGE_API_KEY` (`TYPESAFE_API_KEY` also honored); required by astria when the judge is on |
+| `judge.model` | `jev-latest` upstream | Judge model forwarded as `ASTRIA_LLM_JUDGE_MODEL` |
+| `judge.verify` | `true` upstream | Per-file verification pass re-choosing node types and edge verdicts (`ASTRIA_LLM_JEV_VERIFY`) |
+| `judge.minEdgeProbability` | `0.40` upstream | Keep-probability floor (0–1) below which a semantic edge is dropped |
+| `judge.gate` | `true` upstream | Batched trivial-file gate before first extraction (`ASTRIA_LLM_JEV_GATE`) |
+| `judge.gateMaxBytes` | `65536` upstream | Files above this size (bytes) are presumed rich and skip gate batching |
+| `judge.gateDropThreshold` | `0.40` upstream | Judge keep-score (0–1) at or below which a gated file is dropped |
+| `judge.gateBatch` | `50` upstream | Files per gate batch, bounding request fan-out |
 | `editContext.enabled` | `false` | After a successful watched edit, query the blast radius (`astria affected` on the edited path) and attach it as bounded model context |
 | `editContext.tools` | `write`, `edit`, `str_replace_editor` | Tool names that count as edits for the attached context |
 | `editContext.maxChars` | `2000` | Largest attached blast-radius context in characters |
@@ -64,9 +80,28 @@ Nothing is required: the defaults run `astria` resolved on the scrubbed PATH and
 
 The generated [configuration catalog](../../../docs/config-catalog.md#deepseek-aidsh-astria) is the exhaustive source for every accepted field.
 
+### Semantic extraction backends
+
+astria 1.0.7 can extract with an LLM engine and, optionally, the TypeSafe Jev judge layered over it. `backend` selects the mode for every build and update this deployment runs: `plain` (default) keeps structural extraction with no LLM, while `claude`, `openai` (any OpenAI-compatible endpoint), or `gemini` turn on semantic extraction. Setting any `judge` field layers `--judge jev` over the engine: it gates trivial files before they cost engine calls, re-judges relations and node types from the schema allowlists, and attaches calibrated confidence to semantic edges — it requires an engine, and load rejects it without one. Credentials ride environment entries the provider derives at load (`apiKey`/`baseUrl` for the engine, `judge.*` for the judge), because the subprocess seam scrubs `KEY`-matching ambient variables. A `status` query reports the configured mode on its `Extraction:` line, and the client row carries it into the collapsed summary.
+
+```yaml
+- name: '@deepseek-ai/dsh-astria'
+  config:
+    backend: openai
+    model: gpt-4o-mini
+    apiKey: sk-...
+    baseUrl: https://api.example.com/v1
+    tokenBudget: 50000
+    judge:
+      apiKey: ts-...
+      verify: true
+```
+
+Backend and judge flags need astria ≥ 1.0.7; an older CLI rejects the flags on the run.
+
 ### What a query does
 
-Each query maps onto one astria subcommand (`map`, `query`, `explain`, `path`, `affected`, `stats`, `export`, `god-nodes`, `communities`, `status`) with `--graph <root>` pinning the workspace; `export` adds `--format <html|svg>` and the caller-owned `--out` destination, `status` rides its `--json` envelope (normalized so freshness facts and a missing graph surface structurally), and `hubs`/`communities`/`status` need astria ≥ 1.0.6: refinement fields become `--depth`, `--directed`, `--cursor`, and `--budget` flags. A missing graph fails as the structured `CODEGRAPH_NO_GRAPH` (matched on astria's stable "No graph found" stderr line), which the tool turns into an automatic background build. The child runs once with collected stdout/stderr; exit 0 returns the report text with its truncation fact, and any other exit fails as a structured `CODEGRAPH_EXIT` error whose message carries the bounded stderr tail — so a missing graph surfaces as the CLI's own guidance, not a silent empty result. Cancellation and plugin disposal terminate the child through the subprocess seam's managed range.
+Each query maps onto one astria subcommand (`map`, `query`, `explain`, `path`, `affected`, `stats`, `export`, `god-nodes`, `communities`, `status`) with `--graph <root>` pinning the workspace; `export` adds `--format <html|svg>` and the caller-owned `--out` destination, `status` rides its `--json` envelope (normalized so freshness facts and a missing graph surface structurally), and `hubs`/`communities`/`status` need astria ≥ 1.0.6, and the backend and judge flags need ≥ 1.0.7: refinement fields become `--depth`, `--directed`, `--cursor`, and `--budget` flags. A missing graph fails as the structured `CODEGRAPH_NO_GRAPH` (matched on astria's stable "No graph found" stderr line), which the tool turns into an automatic background build. The child runs once with collected stdout/stderr; exit 0 returns the report text with its truncation fact, and any other exit fails as a structured `CODEGRAPH_EXIT` error whose message carries the bounded stderr tail — so a missing graph surfaces as the CLI's own guidance, not a silent empty result. Cancellation and plugin disposal terminate the child through the subprocess seam's managed range.
 
 ### Advisories
 
@@ -74,7 +109,7 @@ Two opt-in listeners extend the graph's reach beyond explicit calls. `editContex
 
 ### Refresh and automatic updates
 
-`refresh` runs the same one-shot discipline over `astria run` (full pipeline) or `astria update` (incremental AST-only pass); callers own placement — the `code_graph` tool schedules builds as background jobs through `ctx.jobs` under this package's `codegraph` job kind. `autoUpdate` (on by default) adds a `tools/post-execute` listener that watches the configured file-mutating tools and starts one debounced, agent-owned background update per workspace after edits settle, injecting an `astria`-sourced notice the next request sees. The listener activates only where a job registry and the tool runtime are composed.
+`refresh` runs the same one-shot discipline over `astria run` (full pipeline) or `astria update` (incremental AST-only pass); callers own placement — the `code_graph` tool schedules builds as background jobs through `ctx.jobs` under this package's `codegraph` job kind. `autoUpdate` (on by default) adds a `tools/post-execute` listener that watches the configured file-mutating tools and starts one debounced, agent-owned background update per workspace after edits settle, injecting an `astria`-sourced notice the next request sees. The listener activates only where a job registry and the tool runtime are composed. Every refresh run — foreground, background, or automatic — carries the configured backend and judge flags, so updates keep extracting with the selected mode.
 
 -----
 
@@ -90,6 +125,7 @@ Two opt-in listeners extend the graph's reach beyond explicit calls. `editContex
 - **Load-time version diagnostic.** Activation spawns `astria --version` once and logs the line; a failed probe warns and never gates startup.
 - **Execution-world pairing.** The executable resolves and the child runs through `ctx.subprocess`, so pointing the subprocess provider at a remote world moves graph queries with it.
 - **Bounded collection, honest truncation.** stdout collects to `maxOutputBytes` keeping the tail; the result's `truncated` flag is the collect reader's `lossy` fact, so a consumer never mistakes a tailed report for the complete one.
+- **Deterministic selection.** Every child's environment pins `ASTRIA_LLM_BACKEND` and `ASTRIA_LLM_JUDGE` (empty when unselected), so a plain deployment stays plain and an engine deployment stays selected even where the ambient environment carries a selection.
 - **Abort classification before exit classification.** A terminated child resolves `done` with signal exit facts; the provider checks its fused signal first so a caller cancellation or disposal surfaces as the abort reason, never as a fake astria failure.
 
 ### Source map

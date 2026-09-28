@@ -53,6 +53,9 @@ const spec: Astria.AstriaProviderSpec = {
   executable: '/bin/astria',
   args: ['--global'],
   env: { ASTRIA_EXTRA: '1' },
+  llmEnv: {},
+  semantic: {},
+  extractionLabel: 'plain',
   maxOutputBytes: 1000,
   maxStderrBytes: 200,
   killGraceMs: 250,
@@ -136,7 +139,40 @@ describe('AstriaCliProvider.query', () => {
     expect(result.text).toContain('Status: stale')
     expect(result.text).toContain('by astria 1.0.5')
     expect(result.text).toContain('Extraction rules: v9')
-    expect(result.text).toContain('predates this astria\'s extraction rules')
+    expect(result.text).toContain('Extraction: plain')
+  })
+
+  it('appends the configured extraction mode to the normalized status report', async () => {
+    const envelope = JSON.stringify({ status: 'fresh', ageMinutes: 2 })
+    const { specs, spawn } = recordingSpawner(() => fakeHandle({ exitCode: 0, signal: null }, envelope))
+    const provider = new Astria.AstriaCliProvider({
+      ...spec,
+      semantic: { backend: 'openai', judge: true },
+      extractionLabel: 'openai + jev judge',
+    }, spawn)
+    const result = await provider.query({ root: '/ws', query: { operation: 'status' } })
+    expect(specs[0]?.argv).toEqual(['/bin/astria', '--global', 'status', '--json', '--graph', '/ws'])
+    expect(result.text.endsWith('\nExtraction: openai + jev judge')).toBe(true)
+  })
+
+  it('carries the semantic flags and the derived LLM env on refresh runs', async () => {
+    const specs: SubprocessSpawnSpec[] = []
+    const provider = new Astria.AstriaCliProvider({
+      ...spec,
+      semantic: { backend: 'claude', judge: true },
+      llmEnv: { ASTRIA_LLM_BACKEND: 'claude', ASTRIA_LLM_JUDGE: 'jev', ASTRIA_LLM_API_KEY: 'sk-test' },
+    }, (spawned) => {
+      specs.push(spawned)
+      return fakeHandle({ exitCode: 0, signal: null }, 'ok')
+    })
+    await provider.refresh({ root: '/ws', mode: 'update' })
+    expect(specs[0]?.argv).toEqual(['/bin/astria', '--global', 'update', '/ws', '--backend', 'claude', '--judge', 'jev'])
+    expect(specs[0]?.env).toMatchObject({
+      ASTRIA_EXTRA: '1',
+      ASTRIA_LLM_BACKEND: 'claude',
+      ASTRIA_LLM_JUDGE: 'jev',
+      ASTRIA_LLM_API_KEY: 'sk-test',
+    })
   })
 
   it('maps a status envelope reporting a missing graph to CODEGRAPH_NO_GRAPH', async () => {

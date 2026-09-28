@@ -71,6 +71,14 @@ describe('CodeGraphRow', () => {
     expect(screen.queryByRole('button', { name: '查看图' })).toBeNull()
   })
 
+  it('carries the extraction mode into the collapsed summary of a status answer', () => {
+    const view = render(<CodeGraphRow {...props(settled({
+      call: { name: 'code_graph', argsRaw: '{"operation":"status"}' },
+      content: [{ type: 'text', text: 'Status: fresh (2 min ago)\nExtraction: openai + jev judge' }],
+    }))} />)
+    expect(view.container.textContent).toContain('status · openai + jev judge')
+  })
+
   it('discloses the settled report and names the export artifact action', () => {
     const openView = vi.fn().mockResolvedValue(undefined)
     const view = render(<CodeGraphRow {...props(settled({

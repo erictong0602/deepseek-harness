@@ -18,23 +18,26 @@
   en: 6ddd3d77a1c96285
   zh: 9e5bcf768cde2fde
 /deepseek-ai-dsh-astria/use-this-package/minimal-configuration:
-  en: 4f7032a547a010cf
-  zh: a61d66b7f96226c0
+  en: 1121e80966d9849b
+  zh: 5b7d620a3de9dd2a
+/deepseek-ai-dsh-astria/use-this-package/semantic-extraction-backends:
+  en: dc002c927a2277cc
+  zh: d6a458232fd85c91
 /deepseek-ai-dsh-astria/use-this-package/what-a-query-does:
-  en: cea27835236b3780
-  zh: 9d2cd4ba6b5dbe75
+  en: 5fd54dc441b5a974
+  zh: 129615d11bf9c30e
 /deepseek-ai-dsh-astria/use-this-package/advisories:
   en: 232d168602d500a3
   zh: 40981950f78fcf87
 /deepseek-ai-dsh-astria/use-this-package/refresh-and-automatic-updates:
-  en: 5c11d46ef16bef9a
-  zh: 664ab248932c117b
+  en: 6fd1e63e3308b8f6
+  zh: 89a739d8334301f9
 /deepseek-ai-dsh-astria/understand-the-implementation:
   en: 42b15ac6321706aa
   zh: cfcb757213648bd9
 /deepseek-ai-dsh-astria/understand-the-implementation/design-notes:
-  en: 760cccb9b1f28dad
-  zh: 1f6c7e37407966b6
+  en: 531f6b88579ab4f9
+  zh: d5e197c54814527c
 /deepseek-ai-dsh-astria/understand-the-implementation/source-map:
   en: 806701dd5943b177
   zh: 8373cbfd95fc4758

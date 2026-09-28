@@ -26,6 +26,9 @@ const providerSpec: Astria.AstriaProviderSpec = {
   executable: '/bin/astria',
   args: [],
   env: {},
+  llmEnv: {},
+  semantic: {},
+  extractionLabel: 'plain',
   maxOutputBytes: 1000,
   maxStderrBytes: 200,
   killGraceMs: 250,
@@ -39,7 +42,7 @@ describe('AstriaCliProvider.refresh', () => {
       return fakeHandle({ exitCode: 0, signal: null }, 'nodes: 3')
     })
     await expect(provider.refresh({ root: '/ws', mode: 'build' })).resolves.toEqual({ kind: 'text', text: 'nodes: 3', truncated: false })
-    expect(specs[0]).toMatchObject({ argv: ['/bin/astria', 'run', '--graph', '/ws'], cwd: '/ws' })
+    expect(specs[0]).toMatchObject({ argv: ['/bin/astria', 'run', '/ws'], cwd: '/ws' })
   })
 
   it('runs the incremental pass for update', async () => {
@@ -49,7 +52,7 @@ describe('AstriaCliProvider.refresh', () => {
       return fakeHandle({ exitCode: 0, signal: null }, 'updated')
     })
     await provider.refresh({ root: '/ws', mode: 'update' })
-    expect(specs[0]?.argv).toEqual(['/bin/astria', 'update', '--graph', '/ws'])
+    expect(specs[0]?.argv).toEqual(['/bin/astria', 'update', '/ws'])
   })
 
   it('fails with the stderr tail when the build breaks', async () => {

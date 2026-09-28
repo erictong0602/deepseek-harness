@@ -12,6 +12,9 @@ const providerSpec: AstriaProviderSpec = {
   executable: '/bin/astria',
   args: [],
   env: {},
+  llmEnv: {},
+  semantic: {},
+  extractionLabel: 'plain',
   maxOutputBytes: 1000,
   maxStderrBytes: 200,
   killGraceMs: 250,
@@ -106,7 +109,7 @@ describe('AstriaServerProvider', () => {
       () => fakeHandle({ exitCode: 0, signal: null }),
     )
     await expect(provider.refresh({ root: '/ws', mode: 'update' })).resolves.toMatchObject({ text: 'updated' })
-    expect(specs[0]?.argv).toEqual(['/bin/astria', 'update', '--graph', '/ws'])
+    expect(specs[0]?.argv).toEqual(['/bin/astria', 'update', '/ws'])
     await provider.dispose()
   })
 
@@ -319,5 +322,76 @@ describe('astria plugin transport selection', () => {
 
   it('rejects a fractional server timeout at load', async () => {
     await expect(mount({ transport: 'server', serverTimeoutMs: 0.5 })).rejects.toThrow(/serverTimeoutMs/)
+  })
+})
+
+describe('astria plugin semantic backend configuration', () => {
+  it('rides the resolved engine and judge on refresh runs with the derived env', async () => {
+    const { ctx, spawned } = await mount({
+      backend: 'openai',
+      model: 'gpt-4o-mini',
+      apiKey: 'sk-test',
+      tokenBudget: 5000,
+      judge: { model: 'jev-2', verify: false, minEdgeProbability: 0.5 },
+    })
+    await ctx.codeGraph.refresh({ root: '/ws', mode: 'update' })
+    const refresh = spawned.find(spec => spec.argv[1] === 'update')
+    expect(refresh?.argv).toEqual([
+      '/resolved/astria', 'update', '/ws',
+      '--backend', 'openai', '--judge', 'jev', '--model', 'gpt-4o-mini',
+    ])
+    expect(refresh?.env).toMatchObject({
+      ASTRIA_LLM_BACKEND: 'openai',
+      ASTRIA_LLM_JUDGE: 'jev',
+      ASTRIA_LLM_API_KEY: 'sk-test',
+      ASTRIA_LLM_MODEL: 'gpt-4o-mini',
+      ASTRIA_LLM_BUDGET: '5000',
+      ASTRIA_LLM_JUDGE_MODEL: 'jev-2',
+      ASTRIA_LLM_JEV_VERIFY: '0',
+      ASTRIA_LLM_JEV_MIN_EDGE_PROBABILITY: '0.5',
+    })
+    await ctx.fiber.dispose()
+  })
+
+  it('reports the configured extraction mode on normalized status answers', async () => {
+    const { ctx } = await mount(
+      { backend: 'gemini' },
+      { version: { code: 0, text: `${JSON.stringify({ status: 'fresh', ageMinutes: 1 })}
+` } },
+    )
+    const result = await ctx.codeGraph.query({ root: '/ws', query: { operation: 'status' } })
+    expect(result.text).toContain('Status: fresh')
+    expect(result.text).toContain('Extraction: gemini')
+    await ctx.fiber.dispose()
+  })
+
+  it('keeps plain extraction deterministic against a configured ambient selection', async () => {
+    const { ctx, spawned } = await mount({ env: { ASTRIA_LLM_BACKEND: 'claude', ASTRIA_LLM_JUDGE: 'jev' } })
+    await ctx.codeGraph.refresh({ root: '/ws', mode: 'update' })
+    expect(spawned.find(spec => spec.argv[1] === 'update')?.env).toMatchObject({
+      ASTRIA_LLM_BACKEND: '',
+      ASTRIA_LLM_JUDGE: '',
+    })
+    await ctx.fiber.dispose()
+  })
+})
+
+describe('astria plugin semantic validation', () => {
+  it('rejects a judge without an engine backend', async () => {
+    await expect(mount({ backend: 'plain', judge: { model: 'jev-2' } })).rejects.toThrow(/judge requires an engine backend/)
+  })
+
+  it('rejects LLM extraction tiers without an engine backend', async () => {
+    await expect(mount({ labelCommunities: true })).rejects.toThrow(/labelCommunities and deep require an engine backend/)
+    await expect(mount({ deep: true })).rejects.toThrow(/labelCommunities and deep require an engine backend/)
+  })
+
+  it('rejects an openai-only base URL under another engine', async () => {
+    await expect(mount({ backend: 'claude', baseUrl: 'http://localhost:1234/v1' })).rejects.toThrow(/applies to the openai backend only/)
+  })
+
+  it('rejects an unknown backend and a fractional budget', async () => {
+    await expect(mount({ backend: 'jev' })).rejects.toThrow(/backend must be plain, claude, openai, or gemini/)
+    await expect(mount({ backend: 'openai', tokenBudget: 1.5 })).rejects.toThrow(/tokenBudget must be a non-negative integer/)
   })
 })

@@ -53,6 +53,22 @@ kind: "package-reference"
 | `killGraceMs` | `2000` | 取消或释放查询的终止宽限 |
 | `transport` | `cli` | `cli` 每次查询运行一个 astria 子进程；`server` 为每个工作区根目录保有一个池化的 `astria mcp` stdio 子进程并通过它回答查询（刷新始终一次性运行） |
 | `serverTimeoutMs` | `30000` | `server` 传输的 MCP 握手与单次调用预算 |
+| `backend` | `plain` | build/update 运行的语义提取引擎：`plain`（结构化，无 LLM）、`claude`、`openai`（任意 OpenAI 兼容端点）或 `gemini`；astria ≥ 1.0.7 |
+| `model` | — | 以 `--model` 传递的后端专属模型名 |
+| `apiKey` | — | 引擎 API key，转发为 `ASTRIA_LLM_API_KEY`；清洗后的环境会丢弃带 KEY 的变量 |
+| `baseUrl` | — | OpenAI 兼容端点，转发为 `ASTRIA_LLM_BASE_URL`；仅 openai 后端 |
+| `tokenBudget` | — | 每次运行的总 LLM 令牌预算（`ASTRIA_LLM_BUDGET`）；0 表示不限 |
+| `embed` | `false` | 本地嵌入通道（`--embed`）：`similar_to` 边与语义查询召回，无需后端 |
+| `labelCommunities` | `false` | 主题化社区命名（`--label-communities`），每个变更社区一次调用；需要后端 |
+| `deep` | `false` | 跨文件概念链接层级（`--deep`），每个变更文件一次调用；需要后端 |
+| `judge.apiKey` | — | 判定器 API key，转发为 `ASTRIA_LLM_JUDGE_API_KEY`（也接受 `TYPESAFE_API_KEY`）；判定器开启时 astria 必需 |
+| `judge.model` | 上游 `jev-latest` | 判定器模型，转发为 `ASTRIA_LLM_JUDGE_MODEL` |
+| `judge.verify` | 上游 `true` | 每文件校验通道，重选节点类型与边判定（`ASTRIA_LLM_JEV_VERIFY`） |
+| `judge.minEdgeProbability` | 上游 `0.40` | 语义边被丢弃的保留概率下限（0–1） |
+| `judge.gate` | 上游 `true` | 首次提取前的批量琐碎文件门控（`ASTRIA_LLM_JEV_GATE`） |
+| `judge.gateMaxBytes` | 上游 `65536` | 超过该大小（字节）的文件视为内容丰富，跳过门控分批 |
+| `judge.gateDropThreshold` | 上游 `0.40` | 判定器保留分（0–1）不高于该值时被门控文件被丢弃 |
+| `judge.gateBatch` | 上游 `50` | 每个门控批次的文件数，限定请求扇出 |
 | `editContext.enabled` | `false` | 被观察的编辑成功后，查询其影响范围（对被编辑路径运行 `astria affected`）并作为有界模型上下文附加 |
 | `editContext.tools` | `write`、`edit`、`str_replace_editor` | 视为编辑（用于附加上下文）的工具名称 |
 | `editContext.maxChars` | `2000` | 附加影响范围上下文的最大字符数 |
@@ -64,9 +80,28 @@ kind: "package-reference"
 
 生成的[配置目录](../../../docs/config-catalog.zh.md#deepseek-aidsh-astria)是每个可接受字段的详尽来源。
 
+### 语义提取后端
+
+astria 1.0.7 可以用 LLM 引擎提取，并可在其上叠加 TypeSafe Jev 判定器。`backend` 为本部署的每次 build 与 update 选择模式：`plain`（默认）保持无 LLM 的结构化提取，而 `claude`、`openai`（任意 OpenAI 兼容端点）或 `gemini` 开启语义提取。设置任意 `judge` 字段即在引擎之上叠加 `--judge jev`：它在琐碎文件花费引擎调用之前将其门控、按 schema 允许清单重判关系与节点类型、并为语义边附上校准置信度 — 它需要引擎，缺少引擎时加载即拒绝。凭据经由提供方在加载时派生的环境条目传递（引擎用 `apiKey`/`baseUrl`，判定器用 `judge.*`），因为子进程接缝会清洗带 KEY 的环境变量。`status` 查询在其 `Extraction:` 行报告配置的模式，客户端行把它带入折叠摘要。
+
+```yaml
+- name: '@deepseek-ai/dsh-astria'
+  config:
+    backend: openai
+    model: gpt-4o-mini
+    apiKey: sk-...
+    baseUrl: https://api.example.com/v1
+    tokenBudget: 50000
+    judge:
+      apiKey: ts-...
+      verify: true
+```
+
+后端与判定器标志需要 astria ≥ 1.0.7；更旧的 CLI 会在运行时拒绝这些标志。
+
 ### 一次查询做什么
 
-每个查询映射为一个 astria 子命令（`map`、`query`、`explain`、`path`、`affected`、`stats`、`export`、`god-nodes`、`communities`、`status`），`--graph <root>` 固定工作区；`export` 额外携带 `--format <html|svg>` 与调用方持有的 `--out` 目的地，`status` 骑乘其 `--json` 信封（归一化后新鲜度事实与缺失图都结构化呈现），且 `hubs`/`communities`/`status` 需要 astria ≥ 1.0.6：细化字段变成 `--depth`、`--directed`、`--cursor` 与 `--budget` 标志。缺失的图以结构化 `CODEGRAPH_NO_GRAPH` 失败（匹配 astria 稳定的 "No graph found" stderr 行），工具会把它转化为一次自动后台构建。子进程运行一次并收集 stdout/stderr；退出码 0 返回报告文本及其截断事实，任何其他退出都作为结构化 `CODEGRAPH_EXIT` 错误失败，其消息携带有界的 stderr 尾部 — 因此缺失的图以 CLI 自身的指引呈现，而不是无声的空结果。取消与插件释放通过子进程接缝的托管范围终止子进程。
+每个查询映射为一个 astria 子命令（`map`、`query`、`explain`、`path`、`affected`、`stats`、`export`、`god-nodes`、`communities`、`status`），`--graph <root>` 固定工作区；`export` 额外携带 `--format <html|svg>` 与调用方持有的 `--out` 目的地，`status` 骑乘其 `--json` 信封（归一化后新鲜度事实与缺失图都结构化呈现），且 `hubs`/`communities`/`status` 需要 astria ≥ 1.0.6，后端与判定器标志需要 ≥ 1.0.7：细化字段变成 `--depth`、`--directed`、`--cursor` 与 `--budget` 标志。缺失的图以结构化 `CODEGRAPH_NO_GRAPH` 失败（匹配 astria 稳定的 "No graph found" stderr 行），工具会把它转化为一次自动后台构建。子进程运行一次并收集 stdout/stderr；退出码 0 返回报告文本及其截断事实，任何其他退出都作为结构化 `CODEGRAPH_EXIT` 错误失败，其消息携带有界的 stderr 尾部 — 因此缺失的图以 CLI 自身的指引呈现，而不是无声的空结果。取消与插件释放通过子进程接缝的托管范围终止子进程。
 
 ### 附加提示
 
@@ -74,7 +109,7 @@ kind: "package-reference"
 
 ### 刷新与自动更新
 
-`refresh` 以同样的一次性纪律运行 `astria run`（完整流水线）或 `astria update`（增量 AST-only 重建）；放置由调用方决定 — `code_graph` 工具通过 `ctx.jobs` 以本包的 `codegraph` 任务种类把构建调度为后台任务。`autoUpdate` 默认启用：`tools/post-execute` 监听器观察配置的文件修改类工具，在编辑落定后为每个工作区启动一个防抖的、由 agent 拥有的后台更新，并注入下一次请求可见的 `astria` 来源通知。该监听器只在组合了任务注册表与工具运行时时激活。
+`refresh` 以同样的一次性纪律运行 `astria run`（完整流水线）或 `astria update`（增量 AST-only 重建）；放置由调用方决定 — `code_graph` 工具通过 `ctx.jobs` 以本包的 `codegraph` 任务种类把构建调度为后台任务。`autoUpdate` 默认启用：`tools/post-execute` 监听器观察配置的文件修改类工具，在编辑落定后为每个工作区启动一个防抖的、由 agent 拥有的后台更新，并注入下一次请求可见的 `astria` 来源通知。该监听器只在组合了任务注册表与工具运行时时激活。每次刷新运行 — 前台、后台或自动 — 都携带配置的后端与判定器标志，因此更新始终以所选模式提取。
 
 -----
 
@@ -90,6 +125,7 @@ kind: "package-reference"
 - **加载时版本诊断。** 激活时派生一次 `astria --version` 并记录该行；失败的探测只警告，从不阻断启动。
 - **执行世界配对。** 可执行文件通过 `ctx.subprocess` 解析和运行，因此把子进程提供方指向远程世界时，图查询随之迁移。
 - **有界收集与诚实的截断。** stdout 以 `maxOutputBytes` 收集并保留尾部；结果的 `truncated` 标志即收集读取器的 `lossy` 事实，因此消费者不会把尾部报告误当作完整报告。
+- **确定性选择。** 每个子进程的环境都固定 `ASTRIA_LLM_BACKEND` 与 `ASTRIA_LLM_JUDGE`（未选择时为空），因此即使环境携带了选择，plain 部署保持 plain、引擎部署保持所选引擎。
 - **先归类中止再归类退出。** 被终止的子进程以信号退出事实结算 `done`；提供方先检查融合信号，因此调用方取消或释放以中止原因呈现，绝不会伪装成 astria 失败。
 
 ### 源码地图

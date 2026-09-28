@@ -131,7 +131,7 @@ function write(ctx: Context, cwd: string | undefined): { executed: Promise<unkno
   return { executed, agent }
 }
 
-/** The recorded refresh spawns: argv running `astria update --graph`. */
+/** The recorded refresh spawns: argv running `astria update` over the workspace path. */
 function refreshSpawns(spawned: readonly SubprocessSpawnSpec[]): SubprocessSpawnSpec[] {
   return spawned.filter(spec => spec.argv[0] === '/resolved/astria' && spec.argv[1] === 'update')
 }
@@ -153,7 +153,7 @@ describe('autoUpdate listener', () => {
     await expect(executed).resolves.toBeDefined()
     await until(() => jobs.specs.length > 0)
     const refreshes = refreshSpawns(subprocess.spawned)
-    expect(refreshes[0]?.argv).toEqual(['/resolved/astria', 'update', '--graph', '/ws'])
+    expect(refreshes[0]?.argv).toEqual(['/resolved/astria', 'update', '/ws'])
     expect(jobs.specs[0]).toMatchObject({ kind: 'codegraph', label: 'astria update /ws', owner: 'session-1' })
     await until(() => agent !== undefined && agent.notices.length > 0)
     expect(String((agent!.notices[0] as { content: readonly { text?: string }[] }).content[0]?.text)).toContain('astria updated the code graph')

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { CodeGraphQueryRequest } from '@deepseek-ai/dsh-codegraph'
-import { buildAstriaArgs } from '@deepseek-ai/dsh-astria'
+import { buildAstriaArgs, buildAstriaRefreshArgs } from '@deepseek-ai/dsh-astria'
 
 /** A request against one fixed root, varying only the query. */
 function request(query: CodeGraphQueryRequest['query']): CodeGraphQueryRequest {
@@ -79,5 +79,36 @@ describe('buildAstriaArgs', () => {
   it('maps status onto its machine-readable envelope', () => {
     expect(buildAstriaArgs(request({ operation: 'status' })))
       .toEqual(['status', '--json', '--graph', '/ws'])
+  })
+})
+
+describe('buildAstriaRefreshArgs', () => {
+  it('runs the build pipeline over the workspace path with plain extraction', () => {
+    expect(buildAstriaRefreshArgs({ root: '/ws', mode: 'build' })).toEqual(['run', '/ws'])
+    expect(buildAstriaRefreshArgs({ root: '/ws', mode: 'build' }, {})).toEqual(['run', '/ws'])
+  })
+
+  it('appends the resolved semantic flags for an engine with the jev judge', () => {
+    expect(buildAstriaRefreshArgs({ root: '/ws', mode: 'update' }, {
+      backend: 'openai',
+      model: 'gpt-4o-mini',
+      judge: true,
+      embed: true,
+      labelCommunities: true,
+      deep: true,
+    })).toEqual([
+      'update', '/ws',
+      '--backend', 'openai',
+      '--judge', 'jev',
+      '--model', 'gpt-4o-mini',
+      '--embed',
+      '--label-communities',
+      '--deep',
+    ])
+  })
+
+  it('keeps the local embedding pass flaggable without a backend', () => {
+    expect(buildAstriaRefreshArgs({ root: '/ws', mode: 'update' }, { embed: true }))
+      .toEqual(['update', '/ws', '--embed'])
   })
 })

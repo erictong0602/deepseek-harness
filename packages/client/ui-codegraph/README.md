@@ -29,7 +29,7 @@ Mount this browser plugin beside the Tool conversation layer and the remotes bun
 
 ### The call row
 
-The `preparing` stage shows the row glyph and title only. The `start` and `result` stages derive everything from the frozen call/result slice: the collapsed summary names the operation and its subject (the query question, node, path endpoints, or export format), failures replace the subject with the first error line, and interruptions keep their explicit status text. An expandable settled row discloses the exact durable tool output with the standard trajectory `Inspect` affordance when available.
+The `preparing` stage shows the row glyph and title only. The `start` and `result` stages derive everything from the frozen call/result slice: the collapsed summary names the operation and its subject (the query question, node, path endpoints, or export format), failures replace the subject with the first error line, and interruptions keep their explicit status text. An expandable settled row discloses the exact durable tool output with the standard trajectory `Inspect` affordance when available; a settled status answer also carries its `Extraction:` line into the collapsed summary, so the deployment's configured backend is visible without expanding.
 
 ### The view action
 

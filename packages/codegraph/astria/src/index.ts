@@ -21,16 +21,21 @@ import type { JobRegistry } from '@deepseek-ai/dsh-jobs'
 import type { SessionId } from '@deepseek-ai/dsh-session'
 import type { ToolExecution } from '@deepseek-ai/dsh-tools'
 import { MAX_TIMER_DELAY_MS } from '@deepseek-ai/dsh-timeout'
+import type { AstriaEngine, AstriaSemanticSpec } from './args.ts'
 import { AstriaCliProvider } from './provider.ts'
 import type { AstriaProviderSpec, AstriaSpawner } from './provider.ts'
 import { AstriaServerProvider } from './server-provider.ts'
 import type { AstriaServerSpec } from './server.ts'
+
+/** The closed backend selection: `plain` structural extraction or one LLM engine. */
+export type AstriaBackend = 'plain' | AstriaEngine
 
 // Type-only: the compaction events the orientation listener reacts to are declared by this
 // package's SessionEventMap merge.
 import type {} from '@deepseek-ai/dsh-compaction'
 
 export { buildAstriaArgs, buildAstriaRefreshArgs } from './args.ts'
+export type { AstriaEngine, AstriaSemanticSpec } from './args.ts'
 export { AstriaCliProvider } from './provider.ts'
 export type { AstriaProviderSpec, AstriaSpawner } from './provider.ts'
 export { AstriaServerProvider } from './server-provider.ts'
@@ -96,6 +101,30 @@ export interface OrientationConfig {
   budgetTokens?: number
 }
 
+/**
+ * The Jev judge layer (astria ≥ 1.0.7): TypeSafe System One re-judges the engine's extractions,
+ * gates trivial files before they cost engine calls, and attaches calibrated edge confidence.
+ * Presence enables the layer; it requires an engine backend.
+ */
+export interface JudgeConfig {
+  /** Judge API key, forwarded as `ASTRIA_LLM_JUDGE_API_KEY` (`TYPESAFE_API_KEY` also honored). */
+  apiKey?: string
+  /** Judge model, forwarded as `ASTRIA_LLM_JUDGE_MODEL`; upstream default `jev-latest`. */
+  model?: string
+  /** Per-file verification pass re-choosing node types and edge verdicts; upstream default on. */
+  verify?: boolean
+  /** Keep-probability floor (0–1) below which a semantic edge is dropped; upstream default 0.40. */
+  minEdgeProbability?: number
+  /** Batched trivial-file gate before first extraction; upstream default on. */
+  gate?: boolean
+  /** Files above this size (bytes) are presumed rich and skip gate batching; upstream default 65536. */
+  gateMaxBytes?: number
+  /** Judge keep-score (0–1) at or below which a gated file is dropped; upstream default 0.40. */
+  gateDropThreshold?: number
+  /** Files per gate batch, bounding request fan-out; upstream default 50. */
+  gateBatch?: number
+}
+
 /** Debounced post-edit graph refresh; active wherever a job registry and the tool runtime are composed. */
 export interface AutoUpdateConfig {
   /** Listen for file-mutating tool results and refresh the graph. Default true. */
@@ -106,7 +135,7 @@ export interface AutoUpdateConfig {
   tools?: string[]
 }
 
-/** Plugin configuration: the astria executable, its host bounds, and post-edit refresh. */
+/** Plugin configuration: the astria executable, its host bounds, semantic extraction, and post-edit refresh. */
 export interface Config {
   /** Executable to run (absolute, or a bare name resolved on the scrubbed PATH at load). Default `astria`. */
   command?: string
@@ -134,6 +163,28 @@ export interface Config {
   editContext?: EditContextConfig
   /** Repository-map orientation after compaction. Default disabled. */
   orientation?: OrientationConfig
+  /**
+   * Semantic-extraction engine (astria ≥ 1.0.7): `claude`, `openai` (any OpenAI-compatible
+   * endpoint), or `gemini`; `plain` (default) keeps structural extraction with no LLM. Selected
+   * engine runs ride `--backend` on every build and update.
+   */
+  backend?: string
+  /** Backend-specific model name passed as `--model` on build and update runs. */
+  model?: string
+  /** Engine API key forwarded as `ASTRIA_LLM_API_KEY`; the scrubbed ambient env drops KEY-named vars. */
+  apiKey?: string
+  /** OpenAI-compatible endpoint base URL forwarded as `ASTRIA_LLM_BASE_URL`; openai backend only. */
+  baseUrl?: string
+  /** Total LLM token budget for a run, forwarded as `ASTRIA_LLM_BUDGET`; 0 means unlimited. */
+  tokenBudget?: number
+  /** Local embedding pass (`--embed`): `similar_to` edges and semantic query recall; no backend needed. */
+  embed?: boolean
+  /** Thematic community naming (`--label-communities`), one call per changed community; needs a backend. */
+  labelCommunities?: boolean
+  /** Cross-file concept-link tier (`--deep`), one call per changed file; needs a backend. */
+  deep?: boolean
+  /** The Jev judge layer over the selected engine; presence enables it, and it requires a backend. */
+  judge?: JudgeConfig
 }
 
 const AutoUpdateConfig: z<AutoUpdateConfig> = z.object({
@@ -153,6 +204,17 @@ const OrientationConfig: z<OrientationConfig> = z.object({
   budgetTokens: z.number().default(1_000),
 })
 
+const JudgeConfig: z<JudgeConfig> = z.object({
+  apiKey: z.string(),
+  model: z.string(),
+  verify: z.boolean(),
+  minEdgeProbability: z.number().min(0).max(1),
+  gate: z.boolean(),
+  gateMaxBytes: z.number(),
+  gateDropThreshold: z.number().min(0).max(1),
+  gateBatch: z.number(),
+})
+
 export const Config: z<Config> = z.object({
   command: z.string().default('astria'),
   args: z.array(String).default([]),
@@ -169,14 +231,105 @@ export const Config: z<Config> = z.object({
   }),
   editContext: EditContextConfig.default({ enabled: false, tools: [...DEFAULT_AUTO_UPDATE_TOOLS], maxChars: 2_000 }),
   orientation: OrientationConfig.default({ enabled: false, budgetTokens: 1_000 }),
+  backend: z.string().default('plain'),
+  model: z.string(),
+  apiKey: z.string(),
+  baseUrl: z.string(),
+  tokenBudget: z.number(),
+  embed: z.boolean().default(false),
+  labelCommunities: z.boolean().default(false),
+  deep: z.boolean().default(false),
+  judge: JudgeConfig,
 })
 
 /** One plugin config after schemastery fills every default. */
-type ResolvedConfig = Required<Omit<Config, 'autoUpdate' | 'transport' | 'editContext' | 'orientation'>> & {
+type ResolvedConfig = Required<Omit<Config, 'autoUpdate' | 'transport' | 'editContext' | 'orientation' | 'judge'>> & {
   transport: 'cli' | 'server'
   autoUpdate: Required<AutoUpdateConfig>
   editContext: Required<EditContextConfig>
   orientation: Required<OrientationConfig>
+  judge: JudgeConfig | undefined
+}
+
+/** The semantic-extraction surface one provider resolved from its configuration. */
+interface SemanticResolution {
+  readonly semantic: AstriaSemanticSpec
+  readonly llmEnv: Readonly<Record<string, string>>
+  readonly extractionLabel: string
+}
+
+/**
+ * Validate the backend selection and resolve the semantic-extraction surface: the refresh flags,
+ * the derived environment entries, and the status-report label. Fails loud at load on every
+ * combination astria would reject mid-run — a judge or an LLM tier without an engine, an openai-only
+ * base URL under another engine, or a malformed budget or gate knob.
+ * @param config - the resolved plugin configuration.
+ * @returns the semantic flags, environment entries, and extraction label for the provider spec.
+ */
+function resolveSemantic(config: ResolvedConfig): SemanticResolution {
+  const backend = parseBackend(config.backend)
+  // schemastery materializes an unset object field as `{}`; an empty judge block means no judge.
+  const judge = config.judge !== undefined && Object.keys(config.judge).length > 0 ? config.judge : undefined
+  if (backend === 'plain') {
+    if (judge !== undefined) {
+      throw new Error('astria: judge requires an engine backend (the judge wraps an engine; it cannot generate extractions) — set backend to claude, openai, or gemini')
+    }
+    if (config.labelCommunities || config.deep) {
+      throw new Error('astria: labelCommunities and deep require an engine backend — set backend to claude, openai, or gemini')
+    }
+  }
+  if (config.baseUrl !== undefined && backend !== 'openai') {
+    throw new Error('astria: baseUrl is the OpenAI-compatible endpoint and applies to the openai backend only')
+  }
+  if (config.tokenBudget !== undefined && (!Number.isInteger(config.tokenBudget) || config.tokenBudget < 0)) {
+    throw new Error('astria: tokenBudget must be a non-negative integer')
+  }
+  if (judge !== undefined) {
+    if (judge.gateMaxBytes !== undefined) assertPositiveInteger('judge.gateMaxBytes', judge.gateMaxBytes)
+    if (judge.gateBatch !== undefined) assertPositiveInteger('judge.gateBatch', judge.gateBatch)
+  }
+
+  const semantic: AstriaSemanticSpec = backend === 'plain'
+    ? { embed: config.embed }
+    : {
+      backend,
+      ...config.model !== undefined ? { model: config.model } : {},
+      ...judge !== undefined ? { judge: true } : {},
+      embed: config.embed,
+      labelCommunities: config.labelCommunities,
+      deep: config.deep,
+    }
+  const env: Record<string, string> = {
+    // Selection is deterministic: the empty value disables enrichment and the
+    // judge even when the ambient environment carries a selection (astria reads
+    // an empty or `none` backend as "no engine").
+    ASTRIA_LLM_BACKEND: backend === 'plain' ? '' : backend,
+    ASTRIA_LLM_JUDGE: judge !== undefined ? 'jev' : '',
+  }
+  if (config.apiKey !== undefined) env.ASTRIA_LLM_API_KEY = config.apiKey
+  if (config.baseUrl !== undefined) env.ASTRIA_LLM_BASE_URL = config.baseUrl
+  if (config.model !== undefined) env.ASTRIA_LLM_MODEL = config.model
+  if (config.tokenBudget !== undefined) env.ASTRIA_LLM_BUDGET = String(config.tokenBudget)
+  if (judge !== undefined) {
+    if (judge.apiKey !== undefined) env.ASTRIA_LLM_JUDGE_API_KEY = judge.apiKey
+    if (judge.model !== undefined) env.ASTRIA_LLM_JUDGE_MODEL = judge.model
+    if (judge.verify !== undefined) env.ASTRIA_LLM_JEV_VERIFY = judge.verify ? '1' : '0'
+    if (judge.minEdgeProbability !== undefined) env.ASTRIA_LLM_JEV_MIN_EDGE_PROBABILITY = String(judge.minEdgeProbability)
+    if (judge.gate !== undefined) env.ASTRIA_LLM_JEV_GATE = judge.gate ? '1' : '0'
+    if (judge.gateMaxBytes !== undefined) env.ASTRIA_LLM_JEV_GATE_MAX_BYTES = String(judge.gateMaxBytes)
+    if (judge.gateDropThreshold !== undefined) env.ASTRIA_LLM_JEV_GATE_DROP_THRESHOLD = String(judge.gateDropThreshold)
+    if (judge.gateBatch !== undefined) env.ASTRIA_LLM_JEV_GATE_BATCH = String(judge.gateBatch)
+  }
+  const extractionLabel = backend === 'plain'
+    ? config.embed ? 'plain + local embeddings' : 'plain'
+    : `${backend}${judge !== undefined ? ' + jev judge' : ''}`
+  return { semantic, llmEnv: env, extractionLabel }
+}
+
+/** Narrow the configured backend string to the closed selection, failing loud on anything else. */
+function parseBackend(backend: string): AstriaBackend {
+  if (backend === 'plain' || backend === 'claude' || backend === 'openai' || backend === 'gemini') return backend
+  throw new Error(`astria: backend must be plain, claude, openai, or gemini, got ${JSON.stringify(backend)}`)
 }
 
 /**
@@ -194,6 +347,7 @@ export async function apply(ctx: Context, config: Config): Promise<void> {
   if (config.transport !== undefined && config.transport !== 'cli' && config.transport !== 'server') {
     throw new Error(`astria: transport must be "cli" or "server", got ${JSON.stringify(config.transport)}`)
   }
+  const { semantic, llmEnv, extractionLabel } = resolveSemantic(resolved)
 
   const setupAbort = new AbortController()
   // `internal/plugin` is a declared built-in Cordis event (a fiber's uid was cleared on disposal);
@@ -220,6 +374,9 @@ export async function apply(ctx: Context, config: Config): Promise<void> {
     executable,
     args: resolved.args,
     env: resolved.env,
+    llmEnv,
+    semantic,
+    extractionLabel,
     maxOutputBytes: resolved.maxOutputBytes,
     maxStderrBytes: resolved.maxStderrBytes,
     killGraceMs: resolved.killGraceMs,

@@ -15,12 +15,13 @@ import type {
 } from '@deepseek-ai/dsh-codegraph'
 import type { SubprocessHandle, SubprocessSpawnSpec } from '@deepseek-ai/dsh-subprocess'
 import { buildAstriaArgs, buildAstriaRefreshArgs } from './args.ts'
+import type { AstriaSemanticSpec } from './args.ts'
 import { parseAstriaStatus, renderAstriaStatus } from './status.ts'
 
 /** Spawns one managed child from a fully-specified request (injected for testability). */
 export type AstriaSpawner = (spec: SubprocessSpawnSpec) => SubprocessHandle
 
-/** The provider's resolved configuration: one executable and its host bounds. */
+/** The provider's resolved configuration: one executable, its host bounds, and its extraction mode. */
 export interface AstriaProviderSpec {
   /** Canonical executable path resolved in this provider's execution world at load. */
   readonly executable: string
@@ -28,6 +29,12 @@ export interface AstriaProviderSpec {
   readonly args: readonly string[]
   /** Explicit environment entries merged onto the spawner's scrubbed parent base. */
   readonly env: Readonly<Record<string, string>>
+  /** Derived LLM environment entries (backend selection, credentials, judge knobs); win over `env`. */
+  readonly llmEnv: Readonly<Record<string, string>>
+  /** Semantic-extraction flags appended to every refresh run. */
+  readonly semantic: AstriaSemanticSpec
+  /** The configured extraction mode, appended to normalized status reports. */
+  readonly extractionLabel: string
   /** In-memory cap for collected stdout (bytes); overflow keeps the tail. */
   readonly maxOutputBytes: number
   /** In-memory cap for collected stderr (bytes); overflow keeps the tail. */
@@ -86,9 +93,10 @@ export class AstriaCliProvider implements CodeGraphProvider {
 
   /**
    * Normalize one settled `status` run: a parsed envelope becomes the stable rendered report (the
-   * truncation fact survives), a `missing` graph becomes `CODEGRAPH_NO_GRAPH` so consumers react by
-   * building, and anything unparsed (a future CLI's changed output, a truncated envelope) passes
-   * through as the raw text.
+   * truncation fact survives) with the configured extraction mode appended — the report is the one
+   * place consumers see which backend this deployment extracts with — a `missing` graph becomes
+   * `CODEGRAPH_NO_GRAPH` so consumers react by building, and anything unparsed (a future CLI's
+   * changed output, a truncated envelope) passes through as the raw text.
    */
   private normalizeStatus(result: CodeGraphResult): CodeGraphResult {
     const facts = parseAstriaStatus(result.text)
@@ -96,14 +104,14 @@ export class AstriaCliProvider implements CodeGraphProvider {
     if (facts.status === 'missing') {
       throw new CodeGraphError('astria status reports no graph found for the workspace', 'CODEGRAPH_NO_GRAPH')
     }
-    return { ...result, text: renderAstriaStatus(facts) }
+    return { ...result, text: `${renderAstriaStatus(facts)}\nExtraction: ${this.spec.extractionLabel}` }
   }
 
   async refresh(request: CodeGraphRefreshRequest, signal?: AbortSignal): Promise<CodeGraphResult> {
     this.assertActive(signal)
     const fused = this.querySignal(signal)
     return this.track(this.settle(
-      this.spawn(this.spawnSpec(buildAstriaRefreshArgs(request), request.root, fused)),
+      this.spawn(this.spawnSpec(buildAstriaRefreshArgs(request, this.spec.semantic), request.root, fused)),
       `graph ${request.mode}`,
       fused,
     ))
@@ -121,7 +129,7 @@ export class AstriaCliProvider implements CodeGraphProvider {
       },
       graceMs: this.spec.killGraceMs,
       signal: fused,
-      env: this.spec.env,
+      env: { ...this.spec.env, ...this.spec.llmEnv },
     }
   }
 

@@ -85,6 +85,13 @@ function graphViewOf(meta: unknown): GraphViewTarget | null {
   return { format, path }
 }
 
+/** The extraction-mode line a normalized status report carries, when present. */
+function extractionModeOf(output: string | null): string | null {
+  if (output === null) return null
+  const match = /^Extraction: (.+)$/m.exec(output)
+  return match === null ? null : match[1] ?? null
+}
+
 /** Derive display state and the export action target from the durable slice alone. */
 function codeGraphRowModel(block: ToolCallViewProps['block'], callId: string): CodeGraphRowModel {
   const settled = 'kind' in block
@@ -95,9 +102,13 @@ function codeGraphRowModel(block: ToolCallViewProps['block'], callId: string): C
       ? 'stopped'
       : block.isError ? 'error' : 'ok'
   const output = settled ? settledResultText(block) : null
+  // A status answer names the deployment's extraction backend; the collapsed
+  // summary carries it so the mode is visible without expanding the report.
+  const subject = subjectOf(argsRaw, callId)
+  const extraction = extractionModeOf(output)
   return {
     state,
-    subject: subjectOf(argsRaw, callId),
+    subject: extraction === null ? subject : `${subject} · ${extraction}`,
     output,
     errorSummary: state === 'error' && output !== null ? firstLine(output) : null,
     view: settled && !block.isError ? graphViewOf(block.meta) : null,

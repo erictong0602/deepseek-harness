@@ -8,6 +8,28 @@
 import type { CodeGraphQueryRequest, CodeGraphRefreshRequest } from '@deepseek-ai/dsh-codegraph'
 import { assertNever } from '@deepseek-ai/dsh-util-values'
 
+/** The semantic-extraction engines astria ≥ 1.0.7 accepts as `--backend`. */
+export type AstriaEngine = 'claude' | 'openai' | 'gemini'
+
+/**
+ * The semantic-extraction surface one refresh run carries, resolved from plugin configuration.
+ * Absent everywhere is the plain structural pipeline: no `--backend`, no judge, no LLM flags.
+ */
+export interface AstriaSemanticSpec {
+  /** Engine selected with `--backend`; absent means plain structural extraction. */
+  readonly backend?: AstriaEngine
+  /** Backend-specific model passed as `--model`. */
+  readonly model?: string
+  /** The Jev judge layer over the engine (`--judge jev`). */
+  readonly judge?: boolean
+  /** Local embedding pass computing `similar_to` edges (`--embed`); needs no backend. */
+  readonly embed?: boolean
+  /** Thematic community naming (`--label-communities`); needs a backend. */
+  readonly labelCommunities?: boolean
+  /** Cross-file concept-link tier (`--deep`); needs a backend. */
+  readonly deep?: boolean
+}
+
 /**
  * Build the astria CLI arguments for one seam request. `--graph <root>` always pins the queried
  * workspace; refinement flags appear only when the request sets them.
@@ -65,10 +87,22 @@ function budgetArgs(budgetTokens: number | undefined): string[] {
 
 /**
  * Build the astria CLI arguments for one refresh request: the `run` (full pipeline) or `update`
- * (incremental AST-only) subcommand pinned to the workspace root.
+ * (incremental AST-only) subcommand over the workspace root as its positional path (astria's
+ * build commands take `<path>`, not `--graph`), followed by the resolved semantic-extraction
+ * flags. Credentials never ride argv — the provider forwards them as environment entries.
  * @param request - the refresh request (root plus mode).
+ * @param semantic - the resolved semantic-extraction surface; defaults to plain structural.
  * @returns the argv tail following the executable (and any configured global arguments).
  */
-export function buildAstriaRefreshArgs(request: CodeGraphRefreshRequest): string[] {
-  return [request.mode === 'build' ? 'run' : 'update', '--graph', request.root]
+export function buildAstriaRefreshArgs(request: CodeGraphRefreshRequest, semantic: AstriaSemanticSpec = {}): string[] {
+  return [
+    request.mode === 'build' ? 'run' : 'update',
+    request.root,
+    ...semantic.backend !== undefined ? ['--backend', semantic.backend] : [],
+    ...semantic.judge ? ['--judge', 'jev'] : [],
+    ...semantic.model !== undefined ? ['--model', semantic.model] : [],
+    ...semantic.embed ? ['--embed'] : [],
+    ...semantic.labelCommunities ? ['--label-communities'] : [],
+    ...semantic.deep ? ['--deep'] : [],
+  ]
 }

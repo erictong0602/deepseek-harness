@@ -42,6 +42,10 @@ describe.skipIf(executable === undefined)('astria provider against the real CLI'
       expect(stats.text.trim().length).toBeGreaterThan(0)
       const repoMap = await ctx.codeGraph.query({ root, query: { operation: 'repoMap', budgetTokens: 100 } })
       expect(repoMap.text).toContain('sample.ts')
+      // The normalized status report names the configured extraction mode (plain by default).
+      const status = await ctx.codeGraph.query({ root, query: { operation: 'status' } })
+      expect(status.text).toContain('Status: ')
+      expect(status.text).toContain('\nExtraction: plain')
       await ctx.fiber.dispose()
     } finally {
       await rm(root, { recursive: true, force: true })

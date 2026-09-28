@@ -351,10 +351,10 @@ export interface Config {
 ## `@deepseek-ai/dsh-astria`
 
 - `inject`: `subprocess` · `codeGraph`
-- `source`: [`packages/codegraph/astria/src/index.ts:110`](../packages/codegraph/astria/src/index.ts)
+- `source`: [`packages/codegraph/astria/src/index.ts:139`](../packages/codegraph/astria/src/index.ts)
 
 ```ts config-catalog
-/** Plugin configuration: the astria executable, its host bounds, and post-edit refresh. */
+/** Plugin configuration: the astria executable, its host bounds, semantic extraction, and post-edit refresh. */
 export interface Config {
   /** Executable to run (absolute, or a bare name resolved on the scrubbed PATH at load). Default `astria`. */
   command?: string
@@ -382,6 +382,28 @@ export interface Config {
   editContext?: EditContextConfig
   /** Repository-map orientation after compaction. Default disabled. */
   orientation?: OrientationConfig
+  /**
+   * Semantic-extraction engine (astria ≥ 1.0.7): `claude`, `openai` (any OpenAI-compatible
+   * endpoint), or `gemini`; `plain` (default) keeps structural extraction with no LLM. Selected
+   * engine runs ride `--backend` on every build and update.
+   */
+  backend?: string
+  /** Backend-specific model name passed as `--model` on build and update runs. */
+  model?: string
+  /** Engine API key forwarded as `ASTRIA_LLM_API_KEY`; the scrubbed ambient env drops KEY-named vars. */
+  apiKey?: string
+  /** OpenAI-compatible endpoint base URL forwarded as `ASTRIA_LLM_BASE_URL`; openai backend only. */
+  baseUrl?: string
+  /** Total LLM token budget for a run, forwarded as `ASTRIA_LLM_BUDGET`; 0 means unlimited. */
+  tokenBudget?: number
+  /** Local embedding pass (`--embed`): `similar_to` edges and semantic query recall; no backend needed. */
+  embed?: boolean
+  /** Thematic community naming (`--label-communities`), one call per changed community; needs a backend. */
+  labelCommunities?: boolean
+  /** Cross-file concept-link tier (`--deep`), one call per changed file; needs a backend. */
+  deep?: boolean
+  /** The Jev judge layer over the selected engine; presence enables it, and it requires a backend. */
+  judge?: JudgeConfig
 }
 
 /** Debounced post-edit graph refresh; active wherever a job registry and the tool runtime are composed. */
@@ -410,6 +432,30 @@ export interface OrientationConfig {
   enabled?: boolean
   /** The repo map's token budget. Default 1000. */
   budgetTokens?: number
+}
+
+/**
+ * The Jev judge layer (astria ≥ 1.0.7): TypeSafe System One re-judges the engine's extractions,
+ * gates trivial files before they cost engine calls, and attaches calibrated edge confidence.
+ * Presence enables the layer; it requires an engine backend.
+ */
+export interface JudgeConfig {
+  /** Judge API key, forwarded as `ASTRIA_LLM_JUDGE_API_KEY` (`TYPESAFE_API_KEY` also honored). */
+  apiKey?: string
+  /** Judge model, forwarded as `ASTRIA_LLM_JUDGE_MODEL`; upstream default `jev-latest`. */
+  model?: string
+  /** Per-file verification pass re-choosing node types and edge verdicts; upstream default on. */
+  verify?: boolean
+  /** Keep-probability floor (0–1) below which a semantic edge is dropped; upstream default 0.40. */
+  minEdgeProbability?: number
+  /** Batched trivial-file gate before first extraction; upstream default on. */
+  gate?: boolean
+  /** Files above this size (bytes) are presumed rich and skip gate batching; upstream default 65536. */
+  gateMaxBytes?: number
+  /** Judge keep-score (0–1) at or below which a gated file is dropped; upstream default 0.40. */
+  gateDropThreshold?: number
+  /** Files per gate batch, bounding request fan-out; upstream default 50. */
+  gateBatch?: number
 }
 ```
 <!-- END GENERATED config-catalog:@deepseek-ai/dsh-astria -->
